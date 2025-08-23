@@ -229,49 +229,114 @@ class ConversationManager:
         return filtered
     
     def format_results(self, result: ConversationResult, include_content: bool = True) -> str:
-        """Format conversation results for display.
+        """Format conversation results for display as clean markdown.
         
         Args:
             result: ConversationResult to format
             include_content: Whether to include the original content
             
         Returns:
-            Formatted string representation
+            Formatted markdown string
         """
         output = []
         
+        # Header
+        output.append("# Review-Crew Analysis Results")
+        output.append("")
+        output.append(f"**Analysis completed:** {result.timestamp.strftime('%Y-%m-%d at %H:%M:%S')}")
+        output.append("")
+        
         if include_content:
-            output.append("📄 CONTENT REVIEWED:")
-            output.append("=" * 50)
-            output.append(result.content[:200] + "..." if len(result.content) > 200 else result.content)
+            output.append("## Content Reviewed")
+            output.append("")
+            # Format content with proper markdown
+            content_lines = result.content.split('\n')
+            for line in content_lines:
+                if line.strip():
+                    output.append(line)
+                else:
+                    output.append("")
             output.append("")
         
-        output.append("🎭 REVIEW RESULTS:")
-        output.append("=" * 50)
-        
+        # Summary
         successful_reviews = [r for r in result.reviews if not r.error]
         failed_reviews = [r for r in result.reviews if r.error]
         
-        output.append(f"✅ {len(successful_reviews)} successful reviews")
+        output.append("## Summary")
+        output.append("")
+        output.append(f"- **Total Reviews:** {len(result.reviews)}")
+        output.append(f"- **Successful:** {len(successful_reviews)} ✅")
         if failed_reviews:
-            output.append(f"❌ {len(failed_reviews)} failed reviews")
+            output.append(f"- **Failed:** {len(failed_reviews)} ❌")
         output.append("")
         
-        # Display successful reviews
-        for review in successful_reviews:
-            output.append(f"👤 {review.agent_name} ({review.agent_role})")
-            output.append("-" * 40)
-            output.append(review.feedback)
+        # Individual Reviews
+        if successful_reviews:
+            output.append("## Individual Reviews")
             output.append("")
+            
+            for i, review in enumerate(successful_reviews, 1):
+                output.append(f"### {i}. {review.agent_name}")
+                output.append(f"**Role:** {review.agent_role}")
+                output.append("")
+                
+                # Extract clean text from feedback (handle both string and dict formats)
+                clean_feedback = self._extract_clean_feedback(review.feedback)
+                output.append(clean_feedback)
+                output.append("")
+                output.append("---")
+                output.append("")
         
-        # Display failed reviews
+        # Failed Reviews
         if failed_reviews:
-            output.append("❌ FAILED REVIEWS:")
-            output.append("-" * 20)
-            for review in failed_reviews:
-                output.append(f"👤 {review.agent_name}: {review.error}")
+            output.append("## Failed Reviews")
             output.append("")
-        
-        output.append(f"⏰ Completed at: {result.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+            for review in failed_reviews:
+                output.append(f"- **{review.agent_name}:** {review.error}")
+            output.append("")
         
         return "\n".join(output)
+    
+    def _extract_clean_feedback(self, feedback) -> str:
+        """Extract clean text from feedback, handling various formats."""
+        import json
+        import ast
+        
+        if isinstance(feedback, str):
+            # Try to parse as JSON/dict if it looks like one
+            if feedback.strip().startswith('{') and feedback.strip().endswith('}'):
+                try:
+                    # Try JSON first
+                    parsed = json.loads(feedback)
+                    return self._extract_clean_feedback(parsed)
+                except json.JSONDecodeError:
+                    try:
+                        # Try literal_eval for Python dict format
+                        parsed = ast.literal_eval(feedback)
+                        return self._extract_clean_feedback(parsed)
+                    except (ValueError, SyntaxError):
+                        # If parsing fails, return as-is
+                        return feedback
+            else:
+                # If it's already a plain string, return as-is
+                return feedback
+        elif isinstance(feedback, dict):
+            # Handle dictionary format (like from API responses)
+            if 'role' in feedback and 'content' in feedback:
+                content = feedback['content']
+                if isinstance(content, list) and len(content) > 0:
+                    if isinstance(content[0], dict) and 'text' in content[0]:
+                        return content[0]['text']
+                    else:
+                        return str(content[0])
+                elif isinstance(content, str):
+                    return content
+                else:
+                    return str(content)
+            elif 'text' in feedback:
+                return feedback['text']
+            else:
+                return str(feedback)
+        else:
+            # Fallback to string representation
+            return str(feedback)
