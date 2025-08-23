@@ -21,7 +21,6 @@ wheels/
 *.egg
 
 # Virtual environments
-.env
 .venv/
 env/
 venv/
@@ -58,6 +57,11 @@ config/*.json
 .mypy_cache/
 
 # Environment variables
+.env
 .env.local
 .env.production
 .env.development
+
+# Input and Output Directory
+input/
+output/

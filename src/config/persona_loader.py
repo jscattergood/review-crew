@@ -2,13 +2,25 @@
 Persona configuration loader for Review-Crew.
 
 This module handles loading and validating persona configurations from YAML files.
-It supports both example personas (tracked) and custom personas (untracked).
+Supports loading from a configurable personas directory.
+
+Environment Variables:
+    REVIEW_CREW_PERSONAS_DIR: Directory for persona configurations
+                              (defaults to examples/personas for testing)
 """
 
+import os
 import yaml
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
+
+# Try to load python-dotenv if available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed, skip .env loading
 
 
 @dataclass
@@ -39,19 +51,42 @@ class PersonaConfig:
 class PersonaLoader:
     """Loads and manages persona configurations."""
 
-    def __init__(self, project_root: Optional[Path] = None):
+    def __init__(self, project_root: Optional[Path] = None, personas_dir: Optional[Path] = None):
         """Initialize the persona loader.
 
         Args:
             project_root: Path to project root. If None, auto-detects from current file.
+            personas_dir: Custom personas directory. Overrides environment variable and defaults.
         """
         if project_root is None:
             # Auto-detect project root (assumes this file is in src/config/)
             project_root = Path(__file__).parent.parent.parent
 
         self.project_root = Path(project_root)
-        self.examples_dir = self.project_root / "examples" / "personas"
-        self.config_dir = self.project_root / "config" / "personas"
+        
+        # Set personas directory with priority: parameter > env var > default (examples)
+        if personas_dir:
+            self.personas_dir = Path(personas_dir)
+        elif os.getenv('REVIEW_CREW_PERSONAS_DIR'):
+            self.personas_dir = Path(os.getenv('REVIEW_CREW_PERSONAS_DIR'))
+        else:
+            # Default to examples for testing - production should use .env file
+            self.personas_dir = self.project_root / "examples" / "personas"
+    
+    def get_config_info(self) -> Dict[str, Any]:
+        """Get current configuration information.
+        
+        Returns:
+            Dictionary with configuration details
+        """
+        return {
+            'project_root': str(self.project_root),
+            'personas_dir': str(self.personas_dir),
+            'personas_dir_exists': self.personas_dir.exists(),
+            'env_personas_dir': os.getenv('REVIEW_CREW_PERSONAS_DIR'),
+            'is_using_env_var': bool(os.getenv('REVIEW_CREW_PERSONAS_DIR')),
+            'is_default_examples': not bool(os.getenv('REVIEW_CREW_PERSONAS_DIR')),
+        }
 
     def load_persona(self, filepath: Path) -> PersonaConfig:
         """Load a single persona configuration from a YAML file.
@@ -86,30 +121,28 @@ class PersonaLoader:
         except TypeError as e:
             raise ValueError(f"Invalid persona configuration in {filepath}: {e}")
 
-    def load_all_personas(
-        self, use_examples: bool = True, use_custom: bool = True
-    ) -> List[PersonaConfig]:
-        """Load all available persona configurations.
-
-        Args:
-            use_examples: Whether to load example personas
-            use_custom: Whether to load custom personas
+    def load_all_personas(self) -> List[PersonaConfig]:
+        """Load all persona configurations from the configured directory.
 
         Returns:
             List of PersonaConfig objects
         """
-        personas = []
+        if not self.personas_dir.exists():
+            raise ValueError(
+                f"Personas directory not found: {self.personas_dir}\n"
+                f"Set REVIEW_CREW_PERSONAS_DIR environment variable or create the directory."
+            )
 
-        if use_examples and self.examples_dir.exists():
-            personas.extend(self._load_personas_from_dir(self.examples_dir))
-
-        if use_custom and self.config_dir.exists():
-            personas.extend(self._load_personas_from_dir(self.config_dir))
-
+        personas = self._load_personas_from_dir(self.personas_dir)
+        
+        if personas:
+            env_info = " (from env var)" if os.getenv('REVIEW_CREW_PERSONAS_DIR') else " (default)"
+            print(f"✅ Loaded {len(personas)} personas from {self.personas_dir}{env_info}")
+        
         if not personas:
             raise ValueError(
-                "No persona configurations found. "
-                f"Check {self.examples_dir} and {self.config_dir}"
+                f"No persona configurations found in {self.personas_dir}\n"
+                f"Add .yaml files to this directory or check REVIEW_CREW_PERSONAS_DIR"
             )
 
         return personas

@@ -3,6 +3,18 @@
 
 .PHONY: help install setup test clean lint format check run-test personas list-personas
 
+# Helper to source .env file and activate virtual environment
+define run_with_env
+	@if [ -f .env ]; then \
+		echo "📄 Loading .env file..."; \
+	fi; \
+	if [ -f .venv/bin/activate ]; then \
+		set -a; [ -f .env ] && source .env; set +a; source .venv/bin/activate && $(1); \
+	else \
+		set -a; [ -f .env ] && source .env; set +a; $(2); \
+	fi
+endef
+
 # Default target
 help:
 	@echo "Review-Crew Development Commands"
@@ -138,19 +150,11 @@ run-example:
 # Conversation targets
 review:
 	@echo "🎭 Starting Review-Crew CLI..."
-	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python -m src.cli.main review $(ARGS); \
-	else \
-		python3 -m src.cli.main review $(ARGS); \
-	fi
+	$(call run_with_env,python -m src.cli.main review $(ARGS),python3 -m src.cli.main review $(ARGS))
 
 review-lm:
 	@echo "🎭 Starting Review-Crew with LM Studio..."
-	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python -m src.cli.main review $(ARGS) --provider lm_studio; \
-	else \
-		python3 -m src.cli.main review $(ARGS) --provider lm_studio; \
-	fi
+	$(call run_with_env,python -m src.cli.main review $(ARGS) --provider lm_studio,python3 -m src.cli.main review $(ARGS) --provider lm_studio)
 
 test-lm-studio:
 	@echo "🧪 Testing LM Studio integration..."
@@ -199,19 +203,11 @@ test-docs:
 
 agents:
 	@echo "🎭 Available agents:"
-	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python -m src.cli.main agents; \
-	else \
-		python3 -m src.cli.main agents; \
-	fi
+	$(call run_with_env,python -m src.cli.main agents,python3 -m src.cli.main agents)
 
 cli-status:
 	@echo "📊 Review-Crew CLI status:"
-	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python -m src.cli.main status; \
-	else \
-		python3 -m src.cli.main status; \
-	fi
+	$(call run_with_env,python -m src.cli.main status,python3 -m src.cli.main status)
 
 # Cleanup targets
 clean:

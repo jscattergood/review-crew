@@ -6,6 +6,7 @@ This module provides the command-line interface for running multi-agent reviews.
 
 import click
 import asyncio
+import sys
 from pathlib import Path
 from typing import List, Optional
 
@@ -21,7 +22,7 @@ def cli():
 
 
 @cli.command()
-@click.argument('content', type=str)
+@click.argument('content', type=str, required=False)
 @click.option('--agents', '-a', multiple=True, help='Specific agents to use (default: all)')
 @click.option('--async-mode/--sync-mode', default=False, help='Run reviews asynchronously')
 @click.option('--output', '-o', type=click.Path(), help='Save results to file')
@@ -29,22 +30,43 @@ def cli():
 @click.option('--provider', '-p', default='bedrock', type=click.Choice(['bedrock', 'lm_studio', 'ollama']), help='Model provider to use')
 @click.option('--model-url', help='Custom model URL (for LM Studio or Ollama)')
 @click.option('--model-id', help='Custom model ID')
-def review(content: str, agents: tuple, async_mode: bool, output: Optional[str], no_content: bool, provider: str, model_url: Optional[str], model_id: Optional[str]):
+def review(content: Optional[str], agents: tuple, async_mode: bool, output: Optional[str], no_content: bool, provider: str, model_url: Optional[str], model_id: Optional[str]):
     """Review content with multiple AI agents.
     
-    CONTENT can be either text content or a file path.
+    CONTENT can be either text content, a file path, or piped from stdin.
+    If no CONTENT is provided, reads from stdin.
     """
-    # Check if content is a file path
-    content_path = Path(content)
-    if content_path.exists() and content_path.is_file():
-        try:
-            with open(content_path, 'r', encoding='utf-8') as f:
-                content_text = f.read()
-            click.echo(f"📁 Reading content from: {content_path}")
-        except Exception as e:
-            click.echo(f"❌ Error reading file {content_path}: {e}", err=True)
+    # Handle stdin input if no content provided
+    from_stdin = False
+    if content is None:
+        if not sys.stdin.isatty():
+            # Reading from stdin (piped input)
+            content = sys.stdin.read()
+            if not content.strip():
+                click.echo("❌ No content received from stdin", err=True)
+                return
+            click.echo("📥 Reading content from stdin...")
+            from_stdin = True
+        else:
+            # Interactive mode, no stdin
+            click.echo("❌ No content provided. Use: python -m src.cli.main review 'content' or pipe content via stdin", err=True)
             return
+    
+    # Check if content is a file path (skip if from stdin)
+    if not from_stdin:
+        content_path = Path(content)
+        if content_path.exists() and content_path.is_file():
+            try:
+                with open(content_path, 'r', encoding='utf-8') as f:
+                    content_text = f.read()
+                click.echo(f"📁 Reading content from: {content_path}")
+            except Exception as e:
+                click.echo(f"❌ Error reading file {content_path}: {e}", err=True)
+                return
+        else:
+            content_text = content
     else:
+        # Content is from stdin, use it directly
         content_text = content
     
     if not content_text.strip():
@@ -184,6 +206,7 @@ def status():
     try:
         # Check persona loader
         loader = PersonaLoader()
+        config_info = loader.get_config_info()
         personas = loader.load_all_personas()
         
         click.echo("📊 Review-Crew Status")
@@ -199,9 +222,22 @@ def status():
         for persona in personas:
             click.echo(f"  - {persona.name} ({persona.role})")
         
-        click.echo(f"\n📁 Configuration directories:")
-        click.echo(f"  Examples: {loader.examples_dir}")
-        click.echo(f"  Custom: {loader.config_dir}")
+        click.echo(f"\n📁 Personas Directory:")
+        status_icon = "✅" if config_info['personas_dir_exists'] else "❌"
+        source_info = ""
+        if config_info['is_using_env_var']:
+            source_info = " (from env var)"
+        elif config_info['is_default_examples']:
+            source_info = " (default - examples)"
+        
+        click.echo(f"  {config_info['personas_dir']} {status_icon}{source_info}")
+        
+        # Show environment variable if set
+        if config_info['env_personas_dir']:
+            click.echo(f"\n🌍 Environment Variable:")
+            click.echo(f"  REVIEW_CREW_PERSONAS_DIR: {config_info['env_personas_dir']}")
+        else:
+            click.echo(f"\n💡 Tip: Create .env file or set REVIEW_CREW_PERSONAS_DIR to use custom personas")
         
     except Exception as e:
         click.echo(f"❌ Error checking status: {e}", err=True)

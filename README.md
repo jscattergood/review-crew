@@ -99,6 +99,10 @@ make review ARGS='"$(cat path/to/your/file.txt)"'
 # Review a file directly
 python -m src.cli.main review path/to/your/file.txt
 
+# Pipe content from stdin
+cat essay.txt | python -m src.cli.main review
+echo "Review this text" | make review-lm
+
 # Use specific agents
 python -m src.cli.main review "content" -a "Technical Reviewer" -a "UX Reviewer"
 
@@ -170,6 +174,42 @@ Each test input is designed to demonstrate different agent capabilities:
 
 ## Configuration
 
+### Environment Configuration
+
+The system uses a single environment variable to configure the personas directory:
+
+**Default Behavior (Testing):**
+- Uses `examples/personas/` (4 standard review personas)
+- Perfect for testing and getting started
+
+**Production Setup:**
+- Create a `.env` file in the project root
+- Set `REVIEW_CREW_PERSONAS_DIR=config/personas` to use your custom personas
+- The Makefile automatically loads `.env` files when running CLI commands
+
+```bash
+# .env file (already created for you)
+REVIEW_CREW_PERSONAS_DIR=config/personas
+
+# To use standard test personas, comment out or change to:
+# REVIEW_CREW_PERSONAS_DIR=examples/personas
+```
+
+**Manual Override:**
+```bash
+# Temporarily use different personas
+export REVIEW_CREW_PERSONAS_DIR="/path/to/your/personas"
+
+# Check current configuration
+python -m src.cli.main status
+```
+
+**Priority Order:**
+1. **Environment Variable** (`REVIEW_CREW_PERSONAS_DIR`)
+2. **Default** (`examples/personas/` - for testing)
+
+### Persona Files
+
 Persona configuration files use YAML format:
 ```yaml
 name: "Technical Reviewer"
@@ -217,6 +257,13 @@ make clean-config && make setup
 
 # Check specific persona
 python -c "from src.config.persona_loader import PersonaLoader; PersonaLoader().load_personas()"
+
+# Use only standard test personas (temporarily)
+export REVIEW_CREW_PERSONAS_DIR="examples/personas"
+python -m src.cli.main status  # Should show 4 personas
+
+# Or edit .env file to change default
+echo "REVIEW_CREW_PERSONAS_DIR=examples/personas" > .env
 ```
 
 **Virtual Environment Issues:**
