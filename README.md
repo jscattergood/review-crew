@@ -46,6 +46,12 @@ make personas
 # Run example
 make run-example
 
+# Test with realistic samples (no LLM calls)
+make test-python   # Test with Python code sample
+make test-html     # Test with HTML page sample
+make test-docs     # Test with API documentation sample
+make test-review   # Interactive test with all options
+
 # Test LM Studio integration (if you have LM Studio running)
 make test-lm-studio
 ```
@@ -66,10 +72,14 @@ make help          # Show all available commands
 make status        # Check project status
 make format        # Format code with black
 make lint          # Run linting with flake8
+make check         # Run type checking with mypy
 make clean         # Clean up temporary files
+make dev-install   # Install development dependencies
 ```
 
 ### Running Conversations
+
+#### Quick Commands (Makefile)
 ```bash
 # List available review agents
 make agents
@@ -77,23 +87,35 @@ make agents
 # Review text content
 make review ARGS='"Hello world, this is my content to review"'
 
+# Review with LM Studio (local LLM) - RECOMMENDED
+make review-lm ARGS='"Your content here"'
+
 # Review a file
+make review ARGS='"$(cat path/to/your/file.txt)"'
+```
+
+#### Advanced CLI Usage
+```bash
+# Review a file directly
 python -m src.cli.main review path/to/your/file.txt
 
 # Use specific agents
-python -m src.cli.main review "content" --agents "Technical Reviewer" "UX Reviewer"
+python -m src.cli.main review "content" -a "Technical Reviewer" -a "UX Reviewer"
 
-# Use LM Studio (local LLM)
+# Use different providers
 python -m src.cli.main review "content" --provider lm_studio
+python -m src.cli.main review "content" --provider ollama
+python -m src.cli.main review "content" --provider bedrock  # default
 
 # Run async reviews (faster)
 python -m src.cli.main review "content" --async-mode
 
 # Save results to file
-python -m src.cli.main review "content" --output results.txt
+python -m src.cli.main review "content" -o results.txt
 
-# Custom LM Studio configuration
+# Custom model configuration
 python -m src.cli.main review "content" --provider lm_studio --model-url http://localhost:1234/v1
+python -m src.cli.main review "content" --provider ollama --model-id llama2
 ```
 
 ### LLM Configuration
@@ -114,6 +136,38 @@ Before running reviews, configure your LLM provider:
 **Option 3: Other Providers**
 - See [Strands documentation](https://strandsagents.com/latest/documentation/docs/user-guide/concepts/model-providers/) for other providers
 
+## Testing & Examples
+
+### Realistic Test Inputs
+The project includes realistic test content designed to trigger different types of feedback:
+
+- **`test_inputs/user_registration.py`** - Python code with security vulnerabilities, code quality issues
+- **`test_inputs/product_page.html`** - HTML page with UX problems, accessibility issues  
+- **`test_inputs/api_documentation.md`** - API documentation with content clarity and security flaws
+
+### Test Commands
+```bash
+# Non-interactive tests (great for CI/CD)
+make test-python   # Review Python code sample
+make test-html     # Review HTML page sample
+make test-docs     # Review API documentation sample
+
+# Interactive test with provider selection
+make test-review   # Choose provider and test file interactively
+
+# Integration tests
+make test-lm-studio  # Test LM Studio connection
+make test-config     # Validate persona configurations
+```
+
+### Expected Review Types
+Each test input is designed to demonstrate different agent capabilities:
+
+- **Technical Reviewer**: Code quality, security vulnerabilities, architecture issues
+- **Security Reviewer**: Authentication flaws, data exposure, compliance violations  
+- **UX Reviewer**: Accessibility problems, user experience issues, design inconsistencies
+- **Content Reviewer**: Clarity issues, missing information, tone problems
+
 ## Configuration
 
 Persona configuration files use YAML format:
@@ -123,4 +177,53 @@ role: "Senior Software Engineer"
 goal: "Evaluate code quality, architecture, and best practices"
 backstory: "10+ years experience in software development..."
 prompt_template: "Review the following content from a technical perspective..."
+model_config:
+  temperature: 0.3
+  max_tokens: 1500
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**LM Studio Connection Issues:**
+```bash
+# Check if LM Studio is running
+curl http://localhost:1234/v1/models
+
+# Test with explicit URL
+python -m src.cli.main review "test" --provider lm_studio --model-url http://localhost:1234/v1
+```
+
+**Missing Dependencies:**
+```bash
+# For LM Studio support
+pip install -e .[lm-studio]
+
+# For Ollama support  
+pip install -e .[ollama]
+
+# Reinstall everything
+make clean && make install-pip && make setup
+```
+
+**Persona Configuration Errors:**
+```bash
+# Validate configurations
+make test-config
+
+# Reset to defaults
+make clean-config && make setup
+
+# Check specific persona
+python -c "from src.config.persona_loader import PersonaLoader; PersonaLoader().load_personas()"
+```
+
+**Virtual Environment Issues:**
+```bash
+# Create fresh environment
+rm -rf .venv
+python3 -m venv .venv
+source .venv/bin/activate
+make install-pip
 ```
