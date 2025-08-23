@@ -1,0 +1,211 @@
+"""
+Main CLI interface for Review-Crew.
+
+This module provides the command-line interface for running multi-agent reviews.
+"""
+
+import click
+import asyncio
+from pathlib import Path
+from typing import List, Optional
+
+from ..agents.conversation_manager import ConversationManager
+from ..config.persona_loader import PersonaLoader
+
+
+@click.group()
+@click.version_option(version="0.1.0")
+def cli():
+    """Review-Crew: Multi-agent content review system."""
+    pass
+
+
+@cli.command()
+@click.argument('content', type=str)
+@click.option('--agents', '-a', multiple=True, help='Specific agents to use (default: all)')
+@click.option('--async-mode/--sync-mode', default=False, help='Run reviews asynchronously')
+@click.option('--output', '-o', type=click.Path(), help='Save results to file')
+@click.option('--no-content', is_flag=True, help='Hide original content in output')
+@click.option('--provider', '-p', default='bedrock', type=click.Choice(['bedrock', 'lm_studio', 'ollama']), help='Model provider to use')
+@click.option('--model-url', help='Custom model URL (for LM Studio or Ollama)')
+@click.option('--model-id', help='Custom model ID')
+def review(content: str, agents: tuple, async_mode: bool, output: Optional[str], no_content: bool, provider: str, model_url: Optional[str], model_id: Optional[str]):
+    """Review content with multiple AI agents.
+    
+    CONTENT can be either text content or a file path.
+    """
+    # Check if content is a file path
+    content_path = Path(content)
+    if content_path.exists() and content_path.is_file():
+        try:
+            with open(content_path, 'r', encoding='utf-8') as f:
+                content_text = f.read()
+            click.echo(f"📁 Reading content from: {content_path}")
+        except Exception as e:
+            click.echo(f"❌ Error reading file {content_path}: {e}", err=True)
+            return
+    else:
+        content_text = content
+    
+    if not content_text.strip():
+        click.echo("❌ No content provided for review", err=True)
+        return
+    
+    # Build model configuration
+    model_config = {}
+    if model_url:
+        model_config['base_url'] = model_url
+    if model_id:
+        model_config['model_id'] = model_id
+    
+    # Initialize conversation manager
+    try:
+        manager = ConversationManager(
+            model_provider=provider,
+            model_config=model_config
+        )
+    except Exception as e:
+        click.echo(f"❌ Error initializing conversation manager: {e}", err=True)
+        return
+    
+    # Convert agents tuple to list
+    selected_agents = list(agents) if agents else None
+    
+    # Run the review
+    try:
+        if async_mode:
+            click.echo("🚀 Running async review...")
+            result = asyncio.run(manager.run_review_async(content_text, selected_agents))
+        else:
+            click.echo("🚀 Running sync review...")
+            result = manager.run_review(content_text, selected_agents)
+        
+        # Format and display results
+        formatted_output = manager.format_results(result, include_content=not no_content)
+        click.echo(formatted_output)
+        
+        # Save to file if requested
+        if output:
+            try:
+                with open(output, 'w', encoding='utf-8') as f:
+                    f.write(formatted_output)
+                click.echo(f"💾 Results saved to: {output}")
+            except Exception as e:
+                click.echo(f"❌ Error saving to {output}: {e}", err=True)
+        
+    except Exception as e:
+        click.echo(f"❌ Error during review: {e}", err=True)
+
+
+@cli.command()
+def agents():
+    """List available review agents."""
+    try:
+        manager = ConversationManager()
+        available_agents = manager.get_available_agents()
+        
+        if not available_agents:
+            click.echo("❌ No review agents available. Run 'make setup' to configure personas.")
+            return
+        
+        click.echo("🎭 Available Review Agents:")
+        click.echo("=" * 40)
+        
+        for agent_info in available_agents:
+            click.echo(f"👤 {agent_info['name']}")
+            click.echo(f"   Role: {agent_info['role']}")
+            click.echo(f"   Goal: {agent_info['goal']}")
+            click.echo(f"   Temperature: {agent_info['temperature']}")
+            click.echo(f"   Max Tokens: {agent_info['max_tokens']}")
+            click.echo()
+        
+    except Exception as e:
+        click.echo(f"❌ Error listing agents: {e}", err=True)
+
+
+@cli.command()
+@click.argument('content', type=str)
+@click.option('--agent', '-a', required=True, help='Specific agent to use')
+@click.option('--output', '-o', type=click.Path(), help='Save results to file')
+def single(content: str, agent: str, output: Optional[str]):
+    """Review content with a single agent.
+    
+    CONTENT can be either text content or a file path.
+    """
+    # Check if content is a file path
+    content_path = Path(content)
+    if content_path.exists() and content_path.is_file():
+        try:
+            with open(content_path, 'r', encoding='utf-8') as f:
+                content_text = f.read()
+            click.echo(f"📁 Reading content from: {content_path}")
+        except Exception as e:
+            click.echo(f"❌ Error reading file {content_path}: {e}", err=True)
+            return
+    else:
+        content_text = content
+    
+    if not content_text.strip():
+        click.echo("❌ No content provided for review", err=True)
+        return
+    
+    # Initialize conversation manager
+    try:
+        manager = ConversationManager()
+    except Exception as e:
+        click.echo(f"❌ Error initializing conversation manager: {e}", err=True)
+        return
+    
+    # Run single agent review
+    try:
+        click.echo(f"🚀 Running review with {agent}...")
+        result = manager.run_review(content_text, [agent])
+        
+        # Format and display results
+        formatted_output = manager.format_results(result, include_content=True)
+        click.echo(formatted_output)
+        
+        # Save to file if requested
+        if output:
+            try:
+                with open(output, 'w', encoding='utf-8') as f:
+                    f.write(formatted_output)
+                click.echo(f"💾 Results saved to: {output}")
+            except Exception as e:
+                click.echo(f"❌ Error saving to {output}: {e}", err=True)
+        
+    except Exception as e:
+        click.echo(f"❌ Error during review: {e}", err=True)
+
+
+@cli.command()
+def status():
+    """Show Review-Crew status and configuration."""
+    try:
+        # Check persona loader
+        loader = PersonaLoader()
+        personas = loader.load_all_personas()
+        
+        click.echo("📊 Review-Crew Status")
+        click.echo("=" * 30)
+        click.echo(f"✅ Personas loaded: {len(personas)}")
+        
+        # Check conversation manager
+        manager = ConversationManager()
+        agents = manager.get_available_agents()
+        click.echo(f"✅ Agents available: {len(agents)}")
+        
+        click.echo("\n🎭 Configured Personas:")
+        for persona in personas:
+            click.echo(f"  - {persona.name} ({persona.role})")
+        
+        click.echo(f"\n📁 Configuration directories:")
+        click.echo(f"  Examples: {loader.examples_dir}")
+        click.echo(f"  Custom: {loader.config_dir}")
+        
+    except Exception as e:
+        click.echo(f"❌ Error checking status: {e}", err=True)
+
+
+if __name__ == '__main__':
+    cli()

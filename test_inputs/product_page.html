@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Amazing Product - Buy Now!</title>
+    <style>
+        body { font-family: Arial; margin: 0; }
+        .header { background: #ff0000; color: white; padding: 10px; }
+        .content { padding: 20px; }
+        .price { font-size: 48px; color: #ff0000; font-weight: bold; }
+        .button { background: #00ff00; color: black; padding: 15px; border: none; cursor: pointer; }
+        .small-text { font-size: 8px; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔥 AMAZING PRODUCT SALE! 🔥</h1>
+    </div>
+    
+    <div class="content">
+        <h2>Revolutionary Widget Pro Max Ultra</h2>
+        
+        <img src="product.jpg" alt="product image" width="300">
+        
+        <div class="price">$999.99 $19.99!</div>
+        <p class="small-text">*Original price may not reflect actual market value</p>
+        
+        <p>This incredible widget will change your life forever! Scientists hate this one simple trick!</p>
+        
+        <ul>
+            <li>Works 100% of the time, every time*</li>
+            <li>Increases productivity by 500%*</li>
+            <li>Loved by millions of customers*</li>
+            <li>30-day money back guarantee*</li>
+        </ul>
+        
+        <p class="small-text">*Results not guaranteed. Individual results may vary. Not evaluated by FDA.</p>
+        
+        <form action="/purchase" method="post">
+            <input type="text" placeholder="Full Name" required>
+            <input type="email" placeholder="Email" required>
+            <input type="text" placeholder="Credit Card Number" required>
+            <input type="text" placeholder="CVV" required>
+            <input type="text" placeholder="Social Security Number" required>
+            
+            <button class="button" type="submit">BUY NOW - LIMITED TIME!</button>
+        </form>
+        
+        <p class="small-text">By clicking buy now, you agree to our terms and conditions and authorize us to charge your card monthly.</p>
+        
+        <div style="color: red; font-weight: bold; margin-top: 20px;">
+            ⚠️ Only 3 left in stock! Order now or miss out forever!
+        </div>
+    </div>
+    
+    <script>
+        // Auto-submit form after 30 seconds
+        setTimeout(function() {
+            document.forms[0].submit();
+        }, 30000);
+        
+        // Disable right-click
+        document.addEventListener('contextmenu', e => e.preventDefault());
+    </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# Core dependencies
+strands-agents>=0.1.0
+pyyaml>=6.0
+click>=8.0.0
+openai>=1.0.0  # For LM Studio OpenAI-compatible API support
+
+# Development dependencies (optional)
+pytest>=7.0.0
+black>=22.0.0
+flake8>=5.0.0
+mypy>=1.0.0
+
+# Optional dependencies for different providers
+# For LM Studio: openai>=1.0.0 (included above)
+# For Ollama: ollama>=0.1.0 (install separately if needed)
