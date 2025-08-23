@@ -90,9 +90,21 @@ make review ARGS='"Hello world, this is my content to review"'
 # Review with LM Studio (local LLM) - RECOMMENDED
 make review-lm ARGS='"Your content here"'
 
+# Fast async reviews (parallel agents)
+make review-async ARGS='"Your content here"'
+make review-lm-async ARGS='"Your content here"'  # Fastest option!
+
 # Review a file
 make review ARGS='"$(cat path/to/your/file.txt)"'
+
+# Review with output file
+make review-lm ARGS='path/to/file.txt --output results.txt'
+
+# Pipe content with options
+cat essay.txt | make review-lm-async ARGS='--output results.txt --async-mode'
 ```
+
+**Important:** Makefile commands use `ARGS='...'` syntax, not direct command-line arguments.
 
 #### Advanced CLI Usage
 ```bash

@@ -46,6 +46,8 @@ help:
 	@echo "  run-example      Run a simple configuration test"
 	@echo "  review           Run content review (use ARGS='content')"
 	@echo "  review-lm        Run review with LM Studio (use ARGS='content')"
+	@echo "  review-async     Run async review (faster, parallel agents)"
+	@echo "  review-lm-async  Run async review with LM Studio (fastest)"
 	@echo "  agents           List available review agents"
 	@echo "  cli-status       Show CLI status and configuration"
 	@echo "  test-lm-studio   Test LM Studio integration"
@@ -155,6 +157,14 @@ review:
 review-lm:
 	@echo "🎭 Starting Review-Crew with LM Studio..."
 	$(call run_with_env,python -m src.cli.main review $(ARGS) --provider lm_studio,python3 -m src.cli.main review $(ARGS) --provider lm_studio)
+
+review-async:
+	@echo "🎭 Starting Review-Crew CLI (async mode)..."
+	$(call run_with_env,python -m src.cli.main review $(ARGS) --async-mode,python3 -m src.cli.main review $(ARGS) --async-mode)
+
+review-lm-async:
+	@echo "🎭 Starting Review-Crew with LM Studio (async mode)..."
+	$(call run_with_env,python -m src.cli.main review $(ARGS) --provider lm_studio --async-mode,python3 -m src.cli.main review $(ARGS) --provider lm_studio --async-mode)
 
 test-lm-studio:
 	@echo "🧪 Testing LM Studio integration..."
