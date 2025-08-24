@@ -1,7 +1,15 @@
 # Review-Crew
 
 ## Purpose
-This repo implements a multi-agent workflow where agents take on different personas to evaluate content from their given perspective. The goal is to gather each agent's respective feedback. The user can then use that feedback to improve the content and resubmit it for evaluation.
+Review-Crew is a powerful, generic multi-agent review platform that uses AI agents with different personas to evaluate any type of content. The system provides comprehensive feedback from multiple perspectives, then synthesizes all reviews through intelligent analysis agents. Perfect for content review, code analysis, document evaluation, and more.
+
+### Key Features
+- **Multi-Agent Reviews**: Configure any number of reviewer agents with custom personas
+- **Intelligent Analysis**: Synthesis agents integrate feedback, resolve conflicts, and prioritize recommendations  
+- **Generic & Extensible**: Works with any content type - not limited to specific domains
+- **Smart Context Management**: Automatic chunking for large reviews with smaller models
+- **Multiple LLM Providers**: AWS Bedrock, LM Studio, Ollama support
+- **Async Processing**: Fast parallel reviews for better performance
 
 ## Technology
 * **Language**: Python
@@ -12,22 +20,31 @@ This repo implements a multi-agent workflow where agents take on different perso
 
 ## Architecture
 
+### Two-Stage Review Process
+1. **Review Stage**: Multiple reviewer agents provide individual feedback from their specialized perspectives
+2. **Analysis Stage**: Analysis agents synthesize all feedback, resolve conflicts, and provide actionable insights
+
 ### Configuration-Driven Personas
-- **Example Personas**: Tracked in `examples/personas/` for reference and getting started
-- **Custom Personas**: Untracked in `config/personas/` for private/custom reviewer configurations
-- **Flexible Setup**: Configure any number of reviewer agents with custom prompts and roles
+- **Reviewer Personas**: Domain experts, consultants, specialists (e.g., technical, security, UX reviewers)
+- **Analyzer Personas**: Meta-analysis, sentiment analysis, custom synthesis types
+- **Flexible Setup**: Configure any number of agents with custom prompts and roles
+- **Generic Design**: Works with any content type, not domain-specific
 
 ### Project Structure
 ```
 review-crew/
 ├── src/
-│   ├── agents/          # Agent implementations
-│   ├── config/          # Configuration loaders
+│   ├── agents/          # Agent implementations (ReviewAgent, AnalysisAgent)
+│   ├── config/          # Configuration loaders (PersonaLoader)
 │   └── cli/             # Command-line interface
 ├── examples/
 │   └── personas/        # Example persona configurations (tracked)
+│       ├── reviewers/   # Review agent personas
+│       └── analyzers/   # Analysis agent personas
 ├── config/
 │   └── personas/        # Custom persona configurations (untracked)
+│       ├── reviewers/   # Your custom review personas
+│       └── analyzers/   # Your custom analysis personas
 └── requirements.txt     # Dependencies
 ```
 
@@ -129,6 +146,12 @@ python -m src.cli.main review "content" --async-mode
 # Save results to file
 python -m src.cli.main review "content" -o results.txt
 
+# Disable analysis (reviewers only)
+python -m src.cli.main review "content" --no-analysis
+
+# Configure context length for chunking (default: 4096)
+python -m src.cli.main review "content" --max-context-length 8192
+
 # Custom model configuration
 python -m src.cli.main review "content" --provider lm_studio --model-url http://localhost:1234/v1
 python -m src.cli.main review "content" --provider ollama --model-id llama2
@@ -179,10 +202,15 @@ make test-config     # Validate persona configurations
 ### Expected Review Types
 Each test input is designed to demonstrate different agent capabilities:
 
+**Reviewer Agents:**
 - **Technical Reviewer**: Code quality, security vulnerabilities, architecture issues
 - **Security Reviewer**: Authentication flaws, data exposure, compliance violations  
 - **UX Reviewer**: Accessibility problems, user experience issues, design inconsistencies
 - **Content Reviewer**: Clarity issues, missing information, tone problems
+
+**Analysis Agents:**
+- **Meta-Analysis**: Synthesizes all feedback, resolves conflicts, prioritizes recommendations
+- **Sentiment Analysis**: Analyzes tone, emotional impact, and communication effectiveness
 
 ## Configuration
 
@@ -222,7 +250,9 @@ python -m src.cli.main status
 
 ### Persona Files
 
-Persona configuration files use YAML format:
+Persona configuration files use YAML format and are organized by type:
+
+**Reviewer Persona Example** (`config/personas/reviewers/technical.yaml`):
 ```yaml
 name: "Technical Reviewer"
 role: "Senior Software Engineer"
@@ -233,6 +263,65 @@ model_config:
   temperature: 0.3
   max_tokens: 1500
 ```
+
+**Analyzer Persona Example** (`config/personas/analyzers/meta_analysis.yaml`):
+```yaml
+name: "Meta-Analysis & Synthesis Specialist"
+role: "Editorial Consultant & Application Strategy Advisor"
+goal: "Synthesize feedback from all reviewers and provide strategic recommendations"
+backstory: "Expert in content analysis and strategic communication..."
+prompt_template: "Analyze the following reviews and provide synthesis..."
+model_config:
+  temperature: 0.4
+  max_tokens: 2000
+  max_context_length: 8192  # Optional: persona-specific context limit
+```
+
+## Advanced Features
+
+### Analysis & Synthesis
+The system includes intelligent analysis agents that process all reviewer feedback:
+
+- **Conflict Resolution**: Identifies and resolves contradictory recommendations
+- **Priority Ranking**: Ranks feedback by importance and impact
+- **Theme Identification**: Groups related feedback into coherent themes
+- **Actionable Insights**: Provides clear, prioritized next steps
+- **Context Generation**: Creates summaries and context for follow-up work
+
+### Smart Context Management
+For models with smaller context windows, the system automatically handles large review sets:
+
+- **Automatic Chunking**: Splits large review sets into manageable chunks
+- **Intelligent Synthesis**: Combines chunked analyses into coherent final output
+- **Configurable Limits**: Set context length via `--max-context-length` (default: 4096)
+- **Seamless Experience**: Chunking happens transparently when needed
+
+### CLI Options Reference
+```bash
+# Core options
+--provider PROVIDER          # bedrock, lm_studio, ollama (default: bedrock)
+--async-mode                 # Run reviews in parallel (faster)
+--output FILE                # Save results to file
+--no-content                 # Hide original content in output
+
+# Agent selection
+--agents AGENT               # Use specific agents (can repeat)
+
+# Analysis control
+--no-analysis                # Disable analysis stage (reviewers only)
+--max-context-length INT     # Context limit for chunking (default: 4096)
+
+# Model configuration
+--model-url URL              # Custom model URL
+--model-id ID                # Custom model ID
+```
+
+### Output Format
+The system generates structured output with clear sections:
+
+1. **Original Content** (optional, use `--no-content` to hide)
+2. **Individual Reviews** - Detailed feedback from each reviewer
+3. **Analysis & Synthesis** - Integrated insights and recommendations
 
 ## Troubleshooting
 
@@ -267,12 +356,18 @@ make test-config
 # Reset to defaults
 make clean-config && make setup
 
-# Check specific persona
-python -c "from src.config.persona_loader import PersonaLoader; PersonaLoader().load_personas()"
+# Check specific persona types
+python -c "
+from src.config.persona_loader import PersonaLoader
+loader = PersonaLoader()
+reviewers = loader.load_reviewer_personas()
+analyzers = loader.load_analyzer_personas()
+print(f'Reviewers: {len(reviewers)}, Analyzers: {len(analyzers)}')
+"
 
 # Use only standard test personas (temporarily)
 export REVIEW_CREW_PERSONAS_DIR="examples/personas"
-python -m src.cli.main status  # Should show 4 personas
+python -m src.cli.main status  # Should show reviewers and analyzers
 
 # Or edit .env file to change default
 echo "REVIEW_CREW_PERSONAS_DIR=examples/personas" > .env

@@ -12,7 +12,7 @@ Environment Variables:
 import os
 import yaml
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 from dataclasses import dataclass
 
 # Try to load python-dotenv if available
@@ -88,7 +88,7 @@ class PersonaLoader:
             'is_default_examples': not bool(os.getenv('REVIEW_CREW_PERSONAS_DIR')),
         }
 
-    def load_persona(self, filepath: Path) -> PersonaConfig:
+    def load_persona(self, filepath: Union[str, Path]) -> PersonaConfig:
         """Load a single persona configuration from a YAML file.
 
         Args:
@@ -102,6 +102,10 @@ class PersonaLoader:
             yaml.YAMLError: If the YAML is invalid
             ValueError: If the configuration is invalid
         """
+        # Convert to Path object if it's a string
+        if isinstance(filepath, str):
+            filepath = Path(filepath)
+            
         if not filepath.exists():
             raise FileNotFoundError(f"Persona file not found: {filepath}")
 
@@ -121,11 +125,11 @@ class PersonaLoader:
         except TypeError as e:
             raise ValueError(f"Invalid persona configuration in {filepath}: {e}")
 
-    def load_all_personas(self) -> List[PersonaConfig]:
-        """Load all persona configurations from the configured directory.
+    def load_reviewer_personas(self) -> List[PersonaConfig]:
+        """Load reviewer persona configurations from the reviewers directory.
 
         Returns:
-            List of PersonaConfig objects
+            List of reviewer PersonaConfig objects
         """
         if not self.personas_dir.exists():
             raise ValueError(
@@ -133,7 +137,15 @@ class PersonaLoader:
                 f"Set REVIEW_CREW_PERSONAS_DIR environment variable or create the directory."
             )
 
-        personas = self._load_personas_from_dir(self.personas_dir)
+        # Load from reviewers subfolder
+        reviewers_dir = self.personas_dir / "reviewers"
+        if not reviewers_dir.exists():
+            raise ValueError(
+                f"Reviewers directory not found: {reviewers_dir}\n"
+                f"Expected folder structure: {self.personas_dir}/reviewers/ and {self.personas_dir}/analyzers/"
+            )
+        
+        personas = self._load_personas_from_dir(reviewers_dir)
         
         if personas:
             env_info = " (from env var)" if os.getenv('REVIEW_CREW_PERSONAS_DIR') else " (default)"
@@ -146,6 +158,29 @@ class PersonaLoader:
             )
 
         return personas
+
+    def load_analyzer_personas(self) -> List[PersonaConfig]:
+        """Load analyzer persona configurations.
+        
+        Returns:
+            List of analyzer PersonaConfig objects
+        """
+        analyzers_dir = self.personas_dir / "analyzers"
+        if analyzers_dir.exists():
+            return self._load_personas_from_dir(analyzers_dir)
+        else:
+            return []
+
+    def load_all_persona_types(self) -> Dict[str, List[PersonaConfig]]:
+        """Load all persona types (reviewers and analyzers) separately.
+        
+        Returns:
+            Dictionary with 'reviewers' and 'analyzers' keys containing their respective personas
+        """
+        return {
+            'reviewers': self.load_reviewer_personas(),
+            'analyzers': self.load_analyzer_personas()
+        }
 
     def _load_personas_from_dir(self, directory: Path) -> List[PersonaConfig]:
         """Load all persona configurations from a directory.
@@ -186,7 +221,7 @@ class PersonaLoader:
         Returns:
             PersonaConfig if found, None otherwise
         """
-        personas = self.load_all_personas()
+        personas = self.load_reviewer_personas()
         for persona in personas:
             if persona.name.lower() == name.lower():
                 return persona
@@ -198,7 +233,7 @@ class PersonaLoader:
         Returns:
             List of persona names
         """
-        personas = self.load_all_personas()
+        personas = self.load_reviewer_personas()
         return [persona.name for persona in personas]
 
     def setup_custom_config(self) -> None:
@@ -235,9 +270,16 @@ if __name__ == "__main__":
     loader = PersonaLoader()
 
     try:
-        personas = loader.load_all_personas()
-        print(f"Loaded {len(personas)} personas:")
-        for persona in personas:
+        # Load reviewers
+        reviewers = loader.load_reviewer_personas()
+        print(f"Loaded {len(reviewers)} reviewer personas:")
+        for persona in reviewers:
+            print(f"  - {persona.name} ({persona.role})")
+        
+        # Load analyzers
+        analyzers = loader.load_analyzer_personas()
+        print(f"\nLoaded {len(analyzers)} analyzer personas:")
+        for persona in analyzers:
             print(f"  - {persona.name} ({persona.role})")
     except Exception as e:
         print(f"Error loading personas: {e}")

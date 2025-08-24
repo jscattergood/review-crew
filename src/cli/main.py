@@ -30,7 +30,9 @@ def cli():
 @click.option('--provider', '-p', default='bedrock', type=click.Choice(['bedrock', 'lm_studio', 'ollama']), help='Model provider to use')
 @click.option('--model-url', help='Custom model URL (for LM Studio or Ollama)')
 @click.option('--model-id', help='Custom model ID')
-def review(content: Optional[str], agents: tuple, async_mode: bool, output: Optional[str], no_content: bool, provider: str, model_url: Optional[str], model_id: Optional[str]):
+@click.option('--no-analysis', is_flag=True, help='Disable analysis of reviews (skip analyzer personas)')
+@click.option('--max-context-length', type=int, help='Maximum context length for analysis (default: 4096, enables chunking if exceeded)')
+def review(content: Optional[str], agents: tuple, async_mode: bool, output: Optional[str], no_content: bool, provider: str, model_url: Optional[str], model_id: Optional[str], no_analysis: bool, max_context_length: Optional[int]):
     """Review content with multiple AI agents.
     
     CONTENT can be either text content, a file path, or piped from stdin.
@@ -79,12 +81,15 @@ def review(content: Optional[str], agents: tuple, async_mode: bool, output: Opti
         model_config['base_url'] = model_url
     if model_id:
         model_config['model_id'] = model_id
+    # Set max_context_length with default value of 4096
+    model_config['max_context_length'] = max_context_length or 4096
     
     # Initialize conversation manager
     try:
         manager = ConversationManager(
             model_provider=provider,
-            model_config=model_config
+            model_config=model_config,
+            enable_analysis=not no_analysis
         )
     except Exception as e:
         click.echo(f"❌ Error initializing conversation manager: {e}", err=True)
@@ -106,11 +111,15 @@ def review(content: Optional[str], agents: tuple, async_mode: bool, output: Opti
         formatted_output = manager.format_results(result, include_content=not no_content)
         click.echo(formatted_output)
         
+        # Analysis output now includes any context generation defined in analyzer personas
+        
         # Save to file if requested
         if output:
             try:
+                output_content = formatted_output
+                
                 with open(output, 'w', encoding='utf-8') as f:
-                    f.write(formatted_output)
+                    f.write(output_content)
                 click.echo(f"💾 Results saved to: {output}")
             except Exception as e:
                 click.echo(f"❌ Error saving to {output}: {e}", err=True)
@@ -200,6 +209,9 @@ def single(content: str, agent: str, output: Optional[str]):
         click.echo(f"❌ Error during review: {e}", err=True)
 
 
+# Removed college-specific context command - analysis personas now handle context generation automatically
+
+
 @cli.command()
 def status():
     """Show Review-Crew status and configuration."""
@@ -207,19 +219,25 @@ def status():
         # Check persona loader
         loader = PersonaLoader()
         config_info = loader.get_config_info()
-        personas = loader.load_all_personas()
+        reviewers = loader.load_reviewer_personas()
+        analyzers = loader.load_analyzer_personas()
         
         click.echo("📊 Review-Crew Status")
         click.echo("=" * 30)
-        click.echo(f"✅ Personas loaded: {len(personas)}")
+        click.echo(f"✅ Reviewer personas loaded: {len(reviewers)}")
+        click.echo(f"✅ Analyzer personas loaded: {len(analyzers)}")
         
         # Check conversation manager
         manager = ConversationManager()
         agents = manager.get_available_agents()
         click.echo(f"✅ Agents available: {len(agents)}")
         
-        click.echo("\n🎭 Configured Personas:")
-        for persona in personas:
+        click.echo("\n🎭 Configured Reviewer Personas:")
+        for persona in reviewers:
+            click.echo(f"  - {persona.name} ({persona.role})")
+        
+        click.echo("\n🔍 Configured Analyzer Personas:")
+        for persona in analyzers:
             click.echo(f"  - {persona.name} ({persona.role})")
         
         click.echo(f"\n📁 Personas Directory:")

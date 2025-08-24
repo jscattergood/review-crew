@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from .review_agent import ReviewAgent
+from .analysis_agent import AnalysisAgent, AnalysisResult
 from ..config.persona_loader import PersonaLoader, PersonaConfig
 
 
@@ -31,29 +32,40 @@ class ConversationResult:
     reviews: List[ReviewResult]
     timestamp: datetime
     summary: Optional[str] = None
+    analysis: Optional[AnalysisResult] = None
 
 
 class ConversationManager:
     """Manages multi-agent review conversations."""
     
-    def __init__(self, persona_loader: Optional[PersonaLoader] = None, model_provider: str = 'bedrock', model_config: Optional[Dict[str, Any]] = None):
+    def __init__(self, persona_loader: Optional[PersonaLoader] = None, model_provider: str = 'bedrock', model_config: Optional[Dict[str, Any]] = None, enable_analysis: bool = True):
         """Initialize the conversation manager.
         
         Args:
             persona_loader: Optional PersonaLoader instance
             model_provider: Model provider to use ('bedrock', 'lm_studio', 'ollama')
             model_config: Optional model configuration override
+            enable_analysis: Whether to enable analysis of reviews using analyzer personas
         """
         self.persona_loader = persona_loader or PersonaLoader()
         self.model_provider = model_provider
         self.model_config = model_config or {}
+        self.enable_analysis = enable_analysis
         self.agents: List[ReviewAgent] = []
+        self.analysis_agent: Optional[AnalysisAgent] = None
         self._load_agents()
+        
+        if self.enable_analysis:
+            self.analysis_agent = AnalysisAgent(
+                persona_name='meta_analysis',
+                model_provider=model_provider,
+                model_config=model_config
+            )
     
     def _load_agents(self) -> None:
-        """Load all available personas as review agents."""
+        """Load all reviewer personas as review agents."""
         try:
-            personas = self.persona_loader.load_all_personas()
+            personas = self.persona_loader.load_reviewer_personas()
             self.agents = [
                 ReviewAgent(
                     persona, 
@@ -125,6 +137,32 @@ class ConversationManager:
             timestamp=datetime.now()
         )
         
+        # Perform analysis if enabled and we have successful reviews
+        if self.enable_analysis and self.analysis_agent:
+            successful_reviews = [r for r in reviews if not r.error]
+            if len(successful_reviews) > 0:  # Always run analysis if we have any successful reviews
+                print("🧠 Performing analysis...")
+                try:
+                    # Convert ReviewResult objects to dictionaries for analysis
+                    review_dicts = [
+                        {
+                            'agent_name': r.agent_name,
+                            'agent_role': r.agent_role,
+                            'feedback': r.feedback,
+                            'error': r.error
+                        }
+                        for r in successful_reviews
+                    ]
+                    
+                    # Get context length from model config or use default
+                    max_context_length = self.model_config.get('max_context_length', None)
+                    analysis_result = self.analysis_agent.analyze(review_dicts, max_context_length)
+                    result.analysis = analysis_result
+                    print("✅ Analysis complete!")
+                    
+                except Exception as e:
+                    print(f"⚠️  Analysis failed: {e}")
+        
         print(f"🎉 Review complete! Collected {len([r for r in reviews if not r.error])} successful reviews")
         return result
     
@@ -179,6 +217,32 @@ class ConversationManager:
             reviews=processed_reviews,
             timestamp=datetime.now()
         )
+        
+        # Perform analysis if enabled and we have successful reviews
+        if self.enable_analysis and self.analysis_agent:
+            successful_reviews = [r for r in processed_reviews if not r.error]
+            if len(successful_reviews) > 0:  # Always run analysis if we have any successful reviews
+                print("🧠 Performing analysis...")
+                try:
+                    # Convert ReviewResult objects to dictionaries for analysis
+                    review_dicts = [
+                        {
+                            'agent_name': r.agent_name,
+                            'agent_role': r.agent_role,
+                            'feedback': r.feedback,
+                            'error': r.error
+                        }
+                        for r in successful_reviews
+                    ]
+                    
+                    # Get context length from model config or use default
+                    max_context_length = self.model_config.get('max_context_length', None)
+                    analysis_result = await self.analysis_agent.analyze_async(review_dicts, max_context_length)
+                    result.analysis = analysis_result
+                    print("✅ Analysis complete!")
+                    
+                except Exception as e:
+                    print(f"⚠️  Analysis failed: {e}")
         
         print(f"🎉 Async review complete! Collected {len([r for r in processed_reviews if not r.error])} successful reviews")
         return result
@@ -268,6 +332,8 @@ class ConversationManager:
         output.append(f"- **Successful:** {len(successful_reviews)} ✅")
         if failed_reviews:
             output.append(f"- **Failed:** {len(failed_reviews)} ❌")
+        if result.analysis:
+            output.append("- **Meta-Analysis:** Included 🧠")
         output.append("")
         
         # Individual Reviews
@@ -286,6 +352,17 @@ class ConversationManager:
                 output.append("")
                 output.append("---")
                 output.append("")
+        
+        # Analysis Section
+        if result.analysis:
+            output.append("## Analysis & Synthesis")
+            output.append("")
+            output.append(result.analysis.synthesis)
+            output.append("")
+            output.append("---")
+            output.append("")
+            
+            # Additional analysis context is included in the synthesis above
         
         # Failed Reviews
         if failed_reviews:
@@ -340,3 +417,5 @@ class ConversationManager:
         else:
             # Fallback to string representation
             return str(feedback)
+    
+    # Removed college-specific supplemental context methods - analysis personas now handle context generation automatically
