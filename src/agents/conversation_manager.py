@@ -107,6 +107,9 @@ class ConversationManager:
         """
         if target_tokens <= 0:
             return ""
+        
+        if tiktoken is None:
+            raise ImportError("tiktoken is required but not installed. Run: pip install tiktoken")
             
         encoding = tiktoken.get_encoding("cl100k_base")
         tokens = encoding.encode(text)

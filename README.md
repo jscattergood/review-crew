@@ -81,6 +81,7 @@ make test-lm-studio
 1. **Install dependencies**: 
    - With uv: `uv sync`
    - For LM Studio: `uv sync --extra lm-studio` (includes OpenAI package)
+   - For development: `uv sync --group dev` (includes testing tools)
 2. **Setup personas**: `python setup_personas.py` (copies examples to config/)
 3. **Customize personas**: Edit files in `config/personas/` to match your review needs
 4. **Test configuration**: `python -m src.config.persona_loader`
@@ -94,7 +95,7 @@ make format        # Format code with black
 make lint          # Run linting with flake8
 make check         # Run type checking with mypy
 make clean         # Clean up temporary files
-make dev-install   # Install development dependencies
+make dev-install   # Install development dependencies (uses uv sync --group dev)
 ```
 
 ### Running Conversations
@@ -365,11 +366,17 @@ python -m src.cli.main review "test" --provider lm_studio --model-url http://loc
 
 **Missing Dependencies:**
 ```bash
+# Install core dependencies
+uv sync
+
 # For LM Studio support
 uv sync --extra lm-studio
 
 # For Ollama support  
 uv sync --extra ollama
+
+# For development (includes pytest, black, mypy)
+uv sync --group dev
 
 # Reinstall everything
 make clean && make install && make setup

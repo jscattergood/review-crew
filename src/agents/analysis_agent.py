@@ -376,7 +376,6 @@ class AnalysisAgent:
             List of review chunks
         """
         # Use tiktoken for accurate token counting
-        encoding = tiktoken.get_encoding("cl100k_base")
         prompt_buffer = 800  # tokens for prompt template and instructions
         response_buffer = 1000  # tokens for response
 
@@ -390,6 +389,7 @@ class AnalysisAgent:
         for review in reviews:
             # Count actual tokens for this review
             review_text = self._format_single_review_for_analysis(review)
+            encoding = tiktoken.get_encoding("cl100k_base")
             review_tokens = len(encoding.encode(review_text))
 
             # If adding this review would exceed the limit, start a new chunk

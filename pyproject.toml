@@ -9,9 +9,9 @@ dependencies = [
     "strands-agents>=0.1.0",
     "pyyaml>=6.0",
     "click>=8.0.0",
-    "openai>=1.0.0",  # For LM Studio OpenAI-compatible API support
-    "python-dotenv>=1.0.0",  # For .env file support
-    "tiktoken>=0.7.0",  # For accurate token counting and context management
+    "openai>=1.0.0", # For LM Studio OpenAI-compatible API support
+    "python-dotenv>=1.0.0", # For .env file support
+    "tiktoken>=0.7.0", # For accurate token counting and context management
 ]
 requires-python = ">=3.10"
 
@@ -19,14 +19,6 @@ readme = "README.md"
 license = {text = "MIT"}
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "pytest-asyncio>=0.21.0",
-    "black>=22.0.0",
-    "flake8>=5.0.0",
-    "mypy>=1.0.0",
-]
 lm-studio = [
     "openai>=1.0.0",  # For LM Studio support
 ]
@@ -56,5 +48,11 @@ disallow_untyped_defs = true
 
 [dependency-groups]
 dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0", 
+    "pytest-asyncio>=0.21.0",
+    "black>=22.0.0",
+    "flake8>=5.0.0",
+    "mypy>=1.0.0",
     "grip>=4.6.2",
 ]
