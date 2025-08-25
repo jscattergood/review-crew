@@ -20,14 +20,16 @@ Review-Crew is a powerful, generic multi-agent review platform that uses AI agen
 
 ## Architecture
 
-### Two-Stage Review Process
-1. **Review Stage**: Multiple reviewer agents provide individual feedback from their specialized perspectives
-2. **Analysis Stage**: Analysis agents synthesize all feedback, resolve conflicts, and provide actionable insights
+### Three-Stage Review Process
+1. **Context Stage**: Contextualizer agents process and format context information (optional)
+2. **Review Stage**: Multiple reviewer agents provide individual feedback from their specialized perspectives
+3. **Analysis Stage**: Analysis agents synthesize all feedback, resolve conflicts, and provide actionable insights
 
 ### Configuration-Driven Personas
+- **Contextualizer Personas**: Process and format context information before reviews
 - **Reviewer Personas**: Domain experts, consultants, specialists (e.g., technical, security, UX reviewers)
-- **Analyzer Personas**: Meta-analysis, sentiment analysis, custom synthesis types
-- **Flexible Setup**: Configure any number of agents with custom prompts and roles
+- **Analyzer Personas**: Meta-analysis, sentiment analysis, quality metrics, custom synthesis types
+- **Multiple Agent Support**: Configure any number of agents of each type with custom prompts and roles
 - **Generic Design**: Works with any content type, not domain-specific
 
 ### Project Structure
@@ -39,10 +41,12 @@ review-crew/
 │   └── cli/             # Command-line interface
 ├── examples/
 │   └── personas/        # Example persona configurations (tracked)
+│       ├── contextualizers/  # Context processing agent personas
 │       ├── reviewers/   # Review agent personas
 │       └── analyzers/   # Analysis agent personas
 ├── config/
 │   └── personas/        # Custom persona configurations (untracked)
+│       ├── contextualizers/  # Your custom contextualizer personas
 │       ├── reviewers/   # Your custom review personas
 │       └── analyzers/   # Your custom analysis personas
 └── requirements.txt     # Dependencies
@@ -155,6 +159,10 @@ python -m src.cli.main review "content" --max-context-length 8192
 # Custom model configuration
 python -m src.cli.main review "content" --provider lm_studio --model-url http://localhost:1234/v1
 python -m src.cli.main review "content" --provider ollama --model-id llama2
+
+# Context processing with contextualizers
+python -m src.cli.main review "content" --context context_file.txt
+python -m src.cli.main review "content" --context context_file.txt --include-context
 ```
 
 ### LLM Configuration
@@ -202,6 +210,10 @@ make test-config     # Validate persona configurations
 ### Expected Review Types
 Each test input is designed to demonstrate different agent capabilities:
 
+**Contextualizer Agents:**
+- **Business Context Formatter**: Formats business context and requirements for reviews
+- **Context Processor**: Processes and structures context information for better review focus
+
 **Reviewer Agents:**
 - **Technical Reviewer**: Code quality, security vulnerabilities, architecture issues
 - **Security Reviewer**: Authentication flaws, data exposure, compliance violations  
@@ -211,6 +223,7 @@ Each test input is designed to demonstrate different agent capabilities:
 **Analysis Agents:**
 - **Meta-Analysis**: Synthesizes all feedback, resolves conflicts, prioritizes recommendations
 - **Sentiment Analysis**: Analyzes tone, emotional impact, and communication effectiveness
+- **Quality Metrics Analyzer**: Provides quantitative analysis and quality scoring
 
 ## Configuration
 
@@ -264,6 +277,18 @@ model_config:
   max_tokens: 1500
 ```
 
+**Contextualizer Persona Example** (`config/personas/contextualizers/business_contextualizer.yaml`):
+```yaml
+name: "Business Context Formatter"
+role: "Business Requirements Analyst"
+goal: "Format and structure business context for comprehensive reviews"
+backstory: "Expert in translating business requirements into actionable context..."
+prompt_template: "Process and format the following context information..."
+model_config:
+  temperature: 0.2
+  max_tokens: 1000
+```
+
 **Analyzer Persona Example** (`config/personas/analyzers/meta_analysis.yaml`):
 ```yaml
 name: "Meta-Analysis & Synthesis Specialist"
@@ -307,7 +332,9 @@ For models with smaller context windows, the system automatically handles large 
 # Agent selection
 --agents AGENT               # Use specific agents (can repeat)
 
-# Analysis control
+# Context and analysis control
+--context PATH               # Path to context file processed by contextualizers
+--include-context            # Include contextualizer results in output
 --no-analysis                # Disable analysis stage (reviewers only)
 --max-context-length INT     # Context limit for chunking (default: 4096)
 
@@ -320,8 +347,9 @@ For models with smaller context windows, the system automatically handles large 
 The system generates structured output with clear sections:
 
 1. **Original Content** (optional, use `--no-content` to hide)
-2. **Individual Reviews** - Detailed feedback from each reviewer
-3. **Analysis & Synthesis** - Integrated insights and recommendations
+2. **Context Information** (optional, use `--include-context` to show contextualizer results)
+3. **Individual Reviews** - Detailed feedback from each reviewer
+4. **Analysis & Synthesis** - Integrated insights and recommendations
 
 ## Troubleshooting
 
