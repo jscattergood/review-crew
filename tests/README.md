@@ -42,33 +42,12 @@ tests/
 
 ### Quick Start
 ```bash
-# Install dev dependencies (includes pytest)
-make dev-install
-# or directly: uv sync --extra dev
+# Install dev dependencies
+make install
 
 # Run all tests
-make test-all
+make test
 
-# Run fast tests only
-make test-fast
-```
-
-### Detailed Commands
-```bash
-# All tests with verbose output
-uv run pytest tests/ -v
-
-# Unit tests only
-uv run pytest tests/ -v -m "unit"
-
-# Integration tests only
-uv run pytest tests/ -v -m "integration"
-
-# Fast tests (excludes slow integration tests)
-uv run pytest tests/ -v -m "not slow"
-
-# Specific test pattern
-uv run pytest tests/ -v -k "context"
 ```
 
 ### Direct pytest Commands
@@ -179,20 +158,6 @@ def test_complete_workflow(sample_content):
 5. **Automation**: Can run in CI/CD pipelines
 6. **Debugging**: Easier to isolate and fix issues
 
-## Migration from Old Tests
-
-The old test files have been refactored into this pytest structure:
-
-- `test_review.py` → `tests/test_integration.py`
-- `test_conversation.py` → `tests/agents/test_conversation_manager.py`
-- `test_example.py` → `tests/config/test_persona_loader.py`
-
-The new tests provide the same coverage but with:
-- Better organization and structure
-- Mock LLM support for speed
-- More comprehensive assertions
-- Better error handling and reporting
-
 ## Troubleshooting
 
 ### Common Issues
@@ -207,14 +172,6 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"
 ```bash
 # This is expected in test environment
 # Tests will skip gracefully if personas aren't configured
-```
-
-**Pytest Not Found**
-```bash
-# Install dev dependencies (includes pytest)
-make dev-install
-# or directly
-uv sync --extra dev
 ```
 
 ### Debug Mode

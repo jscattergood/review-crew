@@ -91,7 +91,7 @@ def review(
 
     CONTENT can be:
     - Text content directly
-    - A file path (single document review)  
+    - A file path (single document review)
     - A directory path (multi-document review)
     - Omitted to read from stdin
 
@@ -102,7 +102,7 @@ def review(
 
     Examples:
       review "content text"              # Direct text review
-      review essay.txt                   # Single file review  
+      review essay.txt                   # Single file review
       review application-folder/         # Multi-document review
       echo "content" | review            # Stdin review
     """
@@ -141,14 +141,18 @@ def review(
             elif content_path.is_dir():
                 # Directory - new multi-document behavior
                 click.echo(f"📂 Processing document collection from: {content_path}")
-                
+
                 # Check for manifest and provide info
                 manifest_path = content_path / "manifest.yaml"
                 if manifest_path.exists():
-                    click.echo(f"📋 Found manifest file - will use custom reviewer selection")
+                    click.echo(
+                        f"📋 Found manifest file - will use custom reviewer selection"
+                    )
                 else:
-                    click.echo(f"📄 No manifest found - will use all available reviewers")
-                
+                    click.echo(
+                        f"📄 No manifest found - will use all available reviewers"
+                    )
+
                 content_text = str(
                     content_path
                 )  # Pass directory path for manager to handle
@@ -191,14 +195,16 @@ def review(
 
     # Convert agents tuple to list
     selected_agents = list(agents) if agents else None
-    
+
     # Warn if using --agents with a directory that has a manifest
     if selected_agents and not from_stdin:
         content_path = Path(content_text) if content_text else None
         if content_path and content_path.exists() and content_path.is_dir():
             manifest_path = content_path / "manifest.yaml"
             if manifest_path.exists():
-                click.echo("⚠️  Warning: --agents flag will be ignored because manifest.yaml found in directory")
+                click.echo(
+                    "⚠️  Warning: --agents flag will be ignored because manifest.yaml found in directory"
+                )
                 click.echo("   The manifest will determine reviewer selection")
 
     # Read context file if provided
@@ -245,30 +251,35 @@ def review(
         if export_format:
             try:
                 from ..export.formatters import ExportManager
-                
+
                 # Generate export path if not provided
                 if not export_path:
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     export_path = f"review_export_{timestamp}.{export_format}"
-                
+
                 export_manager = ExportManager()
-                
+
                 # Create export metadata
                 export_metadata = {
-                    'review_type': 'multi-document' if Path(content_text).is_dir() else 'single-document',
-                    'document_count': len(list(Path(content_text).iterdir())) if Path(content_text).exists() and Path(content_text).is_dir() else 1
+                    "review_type": (
+                        "multi-document"
+                        if Path(content_text).is_dir()
+                        else "single-document"
+                    ),
+                    "document_count": (
+                        len(list(Path(content_text).iterdir()))
+                        if Path(content_text).exists() and Path(content_text).is_dir()
+                        else 1
+                    ),
                 }
-                
+
                 success = export_manager.export_result(
-                    result, 
-                    Path(export_path), 
-                    export_format,
-                    export_metadata
+                    result, Path(export_path), export_format, export_metadata
                 )
-                
+
                 if not success:
                     click.echo(f"❌ Export failed", err=True)
-                    
+
             except ImportError:
                 click.echo("⚠️  Export functionality not available", err=True)
             except Exception as e:

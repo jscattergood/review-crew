@@ -53,25 +53,7 @@ help:
 # Installation targets
 install:
 	@echo "📦 Installing dependencies with uv..."
-	uv sync
-
-install-pip:
-	@echo "📦 Installing dependencies with pip..."
-	@if [ ! -d .venv ]; then python3 -m venv .venv; fi
-	@source .venv/bin/activate && pip install -r requirements.txt
-
-install-lm:
-	@echo "📦 Installing dependencies with LM Studio support..."
-	@if [ ! -d .venv ]; then python3 -m venv .venv; fi
-	@source .venv/bin/activate && pip install -e .[lm-studio]
-
-dev-install:
-	@echo "📦 Installing development dependencies..."
-	@if command -v uv >/dev/null 2>&1; then \
-		uv sync --extra dev; \
-	else \
-		pip install -e .[dev]; \
-	fi
+	uv sync --group dev
 
 # Setup targets
 setup:
