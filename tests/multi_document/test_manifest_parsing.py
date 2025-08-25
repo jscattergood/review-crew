@@ -12,7 +12,19 @@ from src.config.persona_loader import PersonaLoader, PersonaConfig
 class TestManifestParsing:
     """Test manifest parsing and reviewer selection."""
     
-    def test_load_manifest_valid_file(self, tmp_path):
+    @pytest.fixture
+    def mock_manager(self):
+        """Create a mocked ConversationManager for testing."""
+        with patch('src.agents.conversation_manager.PersonaLoader') as mock_loader:
+            # Mock the PersonaLoader to prevent it from loading actual personas
+            mock_loader.return_value.load_reviewer_personas.return_value = []
+            mock_loader.return_value.load_analyzer_personas.return_value = []
+            mock_loader.return_value.load_contextualizer_personas.return_value = []
+            
+            manager = ConversationManager()
+            return manager
+    
+    def test_load_manifest_valid_file(self, tmp_path, mock_manager):
         """Test loading a valid manifest file."""
         manifest_content = {
             "review_configuration": {
@@ -26,7 +38,7 @@ class TestManifestParsing:
         with open(manifest_file, 'w') as f:
             yaml.dump(manifest_content, f)
         
-        manager = ConversationManager()
+        manager = mock_manager
         loaded_manifest = manager._load_manifest(manifest_file)
         
         assert loaded_manifest == manifest_content

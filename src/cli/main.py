@@ -76,8 +76,22 @@ def review(
 ):
     """Review content with multiple AI agents.
 
-    CONTENT can be either text content, a file path, or piped from stdin.
-    If no CONTENT is provided, reads from stdin.
+    CONTENT can be:
+    - Text content directly
+    - A file path (single document review)  
+    - A directory path (multi-document review)
+    - Omitted to read from stdin
+
+    For multi-document reviews:
+    - Place a manifest.yaml in the directory to specify reviewer selection
+    - Supports reviewer categories (academic, technical, content, business)
+    - Manifest overrides --agents flag when present
+
+    Examples:
+      review "content text"              # Direct text review
+      review essay.txt                   # Single file review  
+      review application-folder/         # Multi-document review
+      echo "content" | review            # Stdin review
     """
     # Handle stdin input if no content provided
     from_stdin = False
@@ -114,6 +128,14 @@ def review(
             elif content_path.is_dir():
                 # Directory - new multi-document behavior
                 click.echo(f"📂 Processing document collection from: {content_path}")
+                
+                # Check for manifest and provide info
+                manifest_path = content_path / "manifest.yaml"
+                if manifest_path.exists():
+                    click.echo(f"📋 Found manifest file - will use custom reviewer selection")
+                else:
+                    click.echo(f"📄 No manifest found - will use all available reviewers")
+                
                 content_text = str(
                     content_path
                 )  # Pass directory path for manager to handle
@@ -156,6 +178,15 @@ def review(
 
     # Convert agents tuple to list
     selected_agents = list(agents) if agents else None
+    
+    # Warn if using --agents with a directory that has a manifest
+    if selected_agents and not from_stdin:
+        content_path = Path(content_text) if content_text else None
+        if content_path and content_path.exists() and content_path.is_dir():
+            manifest_path = content_path / "manifest.yaml"
+            if manifest_path.exists():
+                click.echo("⚠️  Warning: --agents flag will be ignored because manifest.yaml found in directory")
+                click.echo("   The manifest will determine reviewer selection")
 
     # Read context file if provided
     context_data = None
