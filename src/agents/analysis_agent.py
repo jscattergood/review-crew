@@ -2,10 +2,9 @@
 Analysis Agent for performing various types of analysis on review feedback.
 
 This agent can perform different types of analysis based on the loaded persona:
-- Meta-analysis and feedback synthesis
+- Analysis and feedback synthesis
 - Conflict resolution
 - Priority ranking of feedback
-- Personal statement summaries for supplemental essay context
 - Other analysis types as defined by analyzer personas
 """
 
@@ -56,68 +55,39 @@ class AnalysisAgent:
         # Load the specified analyzer persona
         self.persona = self._load_analyzer_persona(persona_name)
         
-        # Create the underlying review agent
-        self.agent = ReviewAgent(
-            self.persona,
-            model_provider=model_provider,
-            model_config_override=model_config
-        )
+        # Create the underlying review agent only if persona is loaded
+        if self.persona:
+            self.agent = ReviewAgent(
+                self.persona,
+                model_provider=model_provider,
+                model_config_override=model_config
+            )
+        else:
+            self.agent = None
     
-    def _load_analyzer_persona(self, persona_name: str) -> PersonaConfig:
+    def _load_analyzer_persona(self, persona_name: str) -> Optional[PersonaConfig]:
         """Load an analyzer persona configuration."""
-        # Try to load from YAML file first
         try:
             from ..config.persona_loader import PersonaLoader
             import os
             loader = PersonaLoader()
-            default_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'personas', 'analyzers', f'{persona_name}.yaml')
-            if os.path.exists(default_path):
-                return loader.load_persona(default_path)
-        except Exception:
-            pass
-        
-        # Fallback to hardcoded meta-analysis persona for backwards compatibility
-        if persona_name == 'meta_analysis':
-            return PersonaConfig(
-            name="Meta-Analysis Synthesizer",
-            role="Senior Editorial Consultant & Application Strategy Expert",
-            goal="Synthesize multiple perspectives into coherent, actionable guidance while creating strategic context for supplemental essays",
-            backstory="""You are a senior editorial consultant with 15+ years of experience in college admissions consulting and content strategy. You specialize in synthesizing diverse feedback from multiple reviewers and creating strategic narratives that connect personal statements with supplemental essays. You have deep expertise in identifying thematic consistency, resolving conflicting advice, and prioritizing recommendations for maximum impact.""",
-            prompt_template="""Analyze the following collection of reviews to provide a comprehensive meta-analysis.
-
-<!-- Original content placeholder (not used in analysis): {content} -->
-
-INDIVIDUAL REVIEWS:
-{reviews}
-
-Please provide a structured analysis with the following sections:
-
-## SYNTHESIS & RECOMMENDATIONS
-Synthesize all feedback into coherent, prioritized recommendations. Resolve any conflicts between reviewers by providing balanced guidance.
-
-## PERSONAL STATEMENT SUMMARY (for supplemental essay context)
-Create a concise 2-3 sentence summary of the personal statement's core themes, unique angle, and key strengths. This will be used as context for supplemental essays to ensure consistency and avoid repetition.
-
-## KEY THEMES IDENTIFIED
-List the 3-5 most important themes that emerged across all reviews.
-
-## CONFLICTING FEEDBACK RESOLUTION
-If reviewers provided conflicting advice, explain the conflicts and provide balanced recommendations.
-
-## PRIORITY ACTION ITEMS
-Rank the top 5 most important changes/improvements in order of priority and impact.
-
-## STRATEGIC GUIDANCE
-Provide strategic advice on how the reviewed content fits into the broader application narrative and what new dimensions should be explored in supplemental essays.
-
-Focus on actionable insights that will genuinely improve the content while maintaining the author's authentic voice.""",
-            model_config={
-                'temperature': 0.4,  # Slightly higher for creative synthesis
-                'max_tokens': 2000   # More tokens for comprehensive analysis
-            }
-        )
-        else:
-            raise ValueError(f"Unknown analyzer persona: {persona_name}. Please create {persona_name}.yaml in config/personas/analyzers/")
+            
+            # Try multiple possible paths for the persona file
+            possible_paths = [
+                os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'personas', 'analyzers', f'{persona_name}.yaml'),
+                os.path.join(os.path.dirname(__file__), '..', '..', 'examples', 'personas', 'analyzers', f'{persona_name}.yaml')
+            ]
+            
+            for path in possible_paths:
+                if os.path.exists(path):
+                    return loader.load_persona(path)
+            
+            # No persona file found
+            return None
+            
+        except Exception as e:
+            print(f"Error loading analyzer persona '{persona_name}': {e}")
+            return None
     
     def analyze(self, reviews: List[Dict[str, Any]], max_context_length: Optional[int] = None) -> AnalysisResult:
         """Perform analysis on multiple agent reviews with optional chunking.
@@ -129,6 +99,13 @@ Focus on actionable insights that will genuinely improve the content while maint
         Returns:
             AnalysisResult with synthesized analysis
         """
+        # Check if persona was loaded
+        if not self.persona or not self.agent:
+            return AnalysisResult(
+                synthesis=f"No analysis performed. Analyzer persona '{self.persona_name}' not found. "
+                         f"Please create {self.persona_name}.yaml in config/personas/analyzers/ or examples/personas/analyzers/"
+            )
+        
         # Check if we need to use chunking strategy
         if max_context_length and self._should_chunk(reviews, max_context_length):
             return self._analyze_with_chunking(reviews, max_context_length)
@@ -175,6 +152,13 @@ Focus on actionable insights that will genuinely improve the content while maint
         Returns:
             AnalysisResult with synthesized analysis
         """
+        # Check if persona was loaded
+        if not self.persona or not self.agent:
+            return AnalysisResult(
+                synthesis=f"No analysis performed. Analyzer persona '{self.persona_name}' not found. "
+                         f"Please create {self.persona_name}.yaml in config/personas/analyzers/ or examples/personas/analyzers/"
+            )
+        
         # Check if we need to use chunking strategy
         if max_context_length and self._should_chunk(reviews, max_context_length):
             # Note: For async, we'll use the sync chunking method for now
@@ -365,45 +349,30 @@ Focus on actionable insights that will genuinely improve the content while maint
         
         return cleaned_items[:5]  # Return top 5 items
     
-    def create_supplemental_context(self, personal_statement: str, meta_analysis: AnalysisResult) -> str:
-        """Create context summary for supplemental essays.
-        
-        Args:
-            personal_statement: The original personal statement
-            meta_analysis: Meta-analysis result containing summary
-            
-        Returns:
-            Formatted context string for supplemental essays
-        """
-        context_parts = []
-        
-        # Add personal statement summary
-        if meta_analysis.personal_statement_summary:
-            context_parts.append(f"**Personal Statement Theme:** {meta_analysis.personal_statement_summary}")
-        
-        # Add key themes
-        if meta_analysis.key_themes:
-            themes_str = ", ".join(meta_analysis.key_themes[:3])  # Top 3 themes
-            context_parts.append(f"**Key Strengths:** {themes_str}")
-        
-        # Add strategic guidance
-        context_parts.append("**Note:** This supplemental should add new dimensions beyond the personal statement themes")
-        
-        return "\n".join(context_parts)
+
     
     def get_info(self) -> Dict[str, Any]:
-        """Get information about this meta-analysis agent."""
+        """Get information about this analysis agent."""
+        if not self.persona:
+            return {
+                'name': f'Analysis Agent ({self.persona_name})',
+                'role': 'No persona loaded',
+                'goal': f'Analyzer persona "{self.persona_name}" not found',
+                'capabilities': [],
+                'status': 'inactive - no persona file found'
+            }
+        
         return {
             'name': self.persona.name,
             'role': self.persona.role,
             'goal': self.persona.goal,
             'capabilities': [
                 'Synthesize multiple reviewer feedback',
-                'Resolve conflicting recommendations',
-                'Create personal statement summaries',
+                'Resolve conflicting recommendations', 
                 'Prioritize action items',
-                'Generate supplemental essay context'
-            ]
+                'Perform analysis based on loaded persona'
+            ],
+            'status': 'active'
         }
     
     def _create_review_chunks(self, reviews: List[Dict[str, Any]], max_context_length: int) -> List[List[Dict[str, Any]]]:

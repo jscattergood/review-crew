@@ -171,15 +171,28 @@ class PersonaLoader:
         else:
             return []
 
-    def load_all_persona_types(self) -> Dict[str, List[PersonaConfig]]:
-        """Load all persona types (reviewers and analyzers) separately.
+    def load_contextualizer_personas(self) -> List[PersonaConfig]:
+        """Load contextualizer persona configurations.
         
         Returns:
-            Dictionary with 'reviewers' and 'analyzers' keys containing their respective personas
+            List of contextualizer PersonaConfig objects
+        """
+        contextualizers_dir = self.personas_dir / "contextualizers"
+        if contextualizers_dir.exists():
+            return self._load_personas_from_dir(contextualizers_dir)
+        else:
+            return []
+
+    def load_all_persona_types(self) -> Dict[str, List[PersonaConfig]]:
+        """Load all persona types (reviewers, analyzers, and contextualizers) separately.
+        
+        Returns:
+            Dictionary with 'reviewers', 'analyzers', and 'contextualizers' keys containing their respective personas
         """
         return {
             'reviewers': self.load_reviewer_personas(),
-            'analyzers': self.load_analyzer_personas()
+            'analyzers': self.load_analyzer_personas(),
+            'contextualizers': self.load_contextualizer_personas()
         }
 
     def _load_personas_from_dir(self, directory: Path) -> List[PersonaConfig]:

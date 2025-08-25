@@ -151,7 +151,7 @@ Be professional but thorough in your analysis."""
             }
         
         # Apply persona model configuration
-        if self.persona.model_config:
+        if self.persona.model_config and isinstance(self.persona.model_config, dict):
             # Map persona config to model config
             if 'temperature' in self.persona.model_config:
                 config['temperature'] = self.persona.model_config['temperature']
@@ -184,7 +184,19 @@ Be professional but thorough in your analysis."""
         result = self.agent(prompt)
         
         # Extract the message content from the result
-        return str(result.message)
+        if hasattr(result, 'message'):
+            return str(result.message)
+        elif isinstance(result, dict):
+            # Handle dictionary format
+            if 'content' in result:
+                content = result['content']
+                if isinstance(content, list) and content:
+                    return str(content[0])
+                elif isinstance(content, str):
+                    return content
+            return str(result)
+        else:
+            return str(result)
     
     async def review_async(self, content: str) -> str:
         """Asynchronously review content using the configured persona.
@@ -202,7 +214,19 @@ Be professional but thorough in your analysis."""
         result = await self.agent.invoke_async(prompt)
         
         # Extract the message content from the result
-        return str(result.message)
+        if hasattr(result, 'message'):
+            return str(result.message)
+        elif isinstance(result, dict):
+            # Handle dictionary format
+            if 'content' in result:
+                content = result['content']
+                if isinstance(content, list) and content:
+                    return str(content[0])
+                elif isinstance(content, str):
+                    return content
+            return str(result)
+        else:
+            return str(result)
     
     def get_info(self) -> Dict[str, Any]:
         """Get information about this review agent.
@@ -210,10 +234,17 @@ Be professional but thorough in your analysis."""
         Returns:
             Dictionary with agent information
         """
+        # Safely get model config values
+        temperature = 0.3
+        max_tokens = 1500
+        if self.persona.model_config and isinstance(self.persona.model_config, dict):
+            temperature = self.persona.model_config.get('temperature', 0.3)
+            max_tokens = self.persona.model_config.get('max_tokens', 1500)
+        
         return {
             'name': self.persona.name,
             'role': self.persona.role,
             'goal': self.persona.goal,
-            'temperature': self.persona.model_config.get('temperature', 0.3),
-            'max_tokens': self.persona.model_config.get('max_tokens', 1500)
+            'temperature': temperature,
+            'max_tokens': max_tokens
         }

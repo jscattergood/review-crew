@@ -1,7 +1,7 @@
 # Review-Crew Makefile
 # Provides convenient commands for development, testing, and running the project
 
-.PHONY: help install setup test clean lint format check run-test personas list-personas
+.PHONY: help install setup test clean lint format check run-example personas validate
 
 # Helper to source .env file and activate virtual environment
 define run_with_env
@@ -28,7 +28,6 @@ help:
 	@echo ""
 	@echo "Testing & Validation:"
 	@echo "  test             Run all tests"
-	@echo "  test-config      Test persona configuration loading"
 	@echo "  personas         List all available personas"
 	@echo "  validate         Validate all persona configurations"
 	@echo ""
@@ -43,18 +42,13 @@ help:
 	@echo "  clean-config     Remove custom persona configurations"
 	@echo ""
 	@echo "Examples & Usage:"
-	@echo "  run-example      Run a simple configuration test"
+	@echo "  run-example      Run example integration test"
 	@echo "  review           Run content review (use ARGS='content')"
 	@echo "  review-lm        Run review with LM Studio (use ARGS='content')"
 	@echo "  review-async     Run async review (faster, parallel agents)"
 	@echo "  review-lm-async  Run async review with LM Studio (fastest)"
 	@echo "  agents           List available review agents"
 	@echo "  cli-status       Show CLI status and configuration"
-	@echo "  test-lm-studio   Test LM Studio integration"
-	@echo "  test-review      Run realistic review test (interactive)"
-	@echo "  test-python      Test with Python code sample"
-	@echo "  test-html        Test with HTML page sample"
-	@echo "  test-docs        Test with API documentation sample"
 
 # Installation targets
 install:
@@ -76,7 +70,7 @@ dev-install:
 	@if command -v uv >/dev/null 2>&1; then \
 		uv sync --extra dev; \
 	else \
-		pip install -r requirements.txt pytest black flake8 mypy; \
+		pip install -e .[dev]; \
 	fi
 
 # Setup targets
@@ -89,16 +83,10 @@ setup:
 	fi
 
 # Testing targets
-test: test-config validate
+test:
+	@echo "🧪 Running all tests..."
+	uv run pytest tests/ -v
 	@echo "✅ All tests passed!"
-
-test-config:
-	@echo "🧪 Testing persona configuration loading..."
-	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python -m src.config.persona_loader; \
-	else \
-		python3 -m src.config.persona_loader; \
-	fi
 
 personas:
 	@echo "🎭 Available personas:"
@@ -143,11 +131,8 @@ check:
 
 # Example and demo targets
 run-example:
-	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python test_example.py; \
-	else \
-		python3 test_example.py; \
-	fi
+	@echo "🧪 Running example integration test..."
+	uv run pytest tests/test_integration.py::TestIntegration::test_mock_review_workflow -v
 
 # Conversation targets
 review:
@@ -166,50 +151,7 @@ review-lm-async:
 	@echo "🎭 Starting Review-Crew with LM Studio (async mode)..."
 	$(call run_with_env,python -m src.cli.main review $(ARGS) --provider lm_studio --async-mode,python3 -m src.cli.main review $(ARGS) --provider lm_studio --async-mode)
 
-test-lm-studio:
-	@echo "🧪 Testing LM Studio integration..."
-	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python test_lm_studio.py; \
-	else \
-		python3 test_lm_studio.py; \
-	fi
 
-test-review:
-	@echo "🎭 Running realistic review test (interactive)..."
-	@echo "📁 Available test files:"
-	@echo "  1. Python Code (user_registration.py) - Security vulnerabilities, code quality issues"
-	@echo "  2. HTML Page (product_page.html) - UX problems, accessibility issues"  
-	@echo "  3. API Documentation (api_documentation.md) - Content clarity, security flaws"
-	@echo ""
-	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python test_review.py; \
-	else \
-		python3 test_review.py; \
-	fi
-
-test-python:
-	@echo "🐍 Testing with Python code (non-interactive)..."
-	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python test_review.py --provider 3 --file 1; \
-	else \
-		python3 test_review.py --provider 3 --file 1; \
-	fi
-
-test-html:
-	@echo "🌐 Testing with HTML page (non-interactive)..."
-	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python test_review.py --provider 3 --file 2; \
-	else \
-		python3 test_review.py --provider 3 --file 2; \
-	fi
-
-test-docs:
-	@echo "📝 Testing with API documentation (non-interactive)..."
-	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python test_review.py --provider 3 --file 3; \
-	else \
-		python3 test_review.py --provider 3 --file 3; \
-	fi
 
 agents:
 	@echo "🎭 Available agents:"
@@ -267,5 +209,5 @@ init: install setup test
 	@echo ""
 	@echo "Next steps:"
 	@echo "1. Customize personas in config/personas/"
-	@echo "2. Run 'make test' to validate changes"
+	@echo "2. Run 'make test' to run all tests"
 	@echo "3. Start building your review workflow!"

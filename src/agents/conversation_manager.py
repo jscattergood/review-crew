@@ -12,6 +12,7 @@ from datetime import datetime
 
 from .review_agent import ReviewAgent
 from .analysis_agent import AnalysisAgent, AnalysisResult
+from .context_agent import ContextAgent, ContextResult
 from ..config.persona_loader import PersonaLoader, PersonaConfig
 
 
@@ -33,12 +34,14 @@ class ConversationResult:
     timestamp: datetime
     summary: Optional[str] = None
     analysis: Optional[AnalysisResult] = None
+    context_result: Optional[ContextResult] = None
+    original_content: Optional[str] = None
 
 
 class ConversationManager:
     """Manages multi-agent review conversations."""
     
-    def __init__(self, persona_loader: Optional[PersonaLoader] = None, model_provider: str = 'bedrock', model_config: Optional[Dict[str, Any]] = None, enable_analysis: bool = True):
+    def __init__(self, persona_loader: Optional[PersonaLoader] = None, model_provider: str = 'bedrock', model_config: Optional[Dict[str, Any]] = None, enable_analysis: bool = True, contextualizer_persona: Optional[str] = None):
         """Initialize the conversation manager.
         
         Args:
@@ -46,18 +49,28 @@ class ConversationManager:
             model_provider: Model provider to use ('bedrock', 'lm_studio', 'ollama')
             model_config: Optional model configuration override
             enable_analysis: Whether to enable analysis of reviews using analyzer personas
+            contextualizer_persona: Name of contextualizer persona to use for context processing (optional)
         """
         self.persona_loader = persona_loader or PersonaLoader()
         self.model_provider = model_provider
         self.model_config = model_config or {}
         self.enable_analysis = enable_analysis
+        self.contextualizer_persona = contextualizer_persona
         self.agents: List[ReviewAgent] = []
         self.analysis_agent: Optional[AnalysisAgent] = None
+        self.context_agent: Optional[ContextAgent] = None
         self._load_agents()
         
         if self.enable_analysis:
             self.analysis_agent = AnalysisAgent(
                 persona_name='meta_analysis',
+                model_provider=model_provider,
+                model_config=model_config
+            )
+        
+        if self.contextualizer_persona:
+            self.context_agent = ContextAgent(
+                persona_name=self.contextualizer_persona,
                 model_provider=model_provider,
                 model_config=model_config
             )
@@ -87,11 +100,12 @@ class ConversationManager:
         """
         return [agent.get_info() for agent in self.agents]
     
-    def run_review(self, content: str, selected_agents: Optional[List[str]] = None) -> ConversationResult:
+    def run_review(self, content: str, context_data: Optional[str] = None, selected_agents: Optional[List[str]] = None) -> ConversationResult:
         """Run a synchronous review with selected agents.
         
         Args:
             content: Content to review
+            context_data: Optional context information to be processed by contextualizer
             selected_agents: Optional list of agent names to use (uses all if None)
             
         Returns:
@@ -99,6 +113,22 @@ class ConversationManager:
         """
         if not self.agents:
             raise ValueError("No review agents available. Check your persona configurations.")
+        
+        # Process context if provided and contextualizer is available
+        context_result = None
+        if context_data and self.context_agent:
+            print("🔍 Processing context information...")
+            try:
+                context_result = self.context_agent.process_context(context_data)
+                if context_result:
+                    print(f"  ✅ Context processed: {context_result.context_summary}")
+                else:
+                    print("  ℹ️  No contextualizer available - proceeding without additional context")
+            except Exception as e:
+                print(f"  ⚠️  Context processing failed: {e}")
+                print("  📝 Proceeding without additional context...")
+        elif context_data and not self.context_agent:
+            print("  ℹ️  Context data provided but no contextualizer persona configured")
         
         # Filter agents if specific ones are requested
         agents_to_use = self._filter_agents(selected_agents)
@@ -110,7 +140,10 @@ class ConversationManager:
             print(f"  📝 {agent.persona.name} is reviewing...")
             
             try:
-                feedback = agent.review(content)
+                # Prepare content for review (include context if available)
+                content_to_review = self._prepare_content_for_review(content, context_result)
+                
+                feedback = agent.review(content_to_review)
                 review = ReviewResult(
                     agent_name=agent.persona.name,
                     agent_role=agent.persona.role,
@@ -134,6 +167,8 @@ class ConversationManager:
         result = ConversationResult(
             content=content,
             reviews=reviews,
+            context_result=context_result,
+            original_content=None,  # No longer needed since we're not extracting
             timestamp=datetime.now()
         )
         
@@ -166,11 +201,12 @@ class ConversationManager:
         print(f"🎉 Review complete! Collected {len([r for r in reviews if not r.error])} successful reviews")
         return result
     
-    async def run_review_async(self, content: str, selected_agents: Optional[List[str]] = None) -> ConversationResult:
+    async def run_review_async(self, content: str, context_data: Optional[str] = None, selected_agents: Optional[List[str]] = None) -> ConversationResult:
         """Run an asynchronous review with selected agents.
         
         Args:
             content: Content to review
+            context_data: Optional context information to be processed by contextualizer
             selected_agents: Optional list of agent names to use (uses all if None)
             
         Returns:
@@ -179,15 +215,34 @@ class ConversationManager:
         if not self.agents:
             raise ValueError("No review agents available. Check your persona configurations.")
         
+        # Process context if provided and contextualizer is available
+        context_result = None
+        if context_data and self.context_agent:
+            print("🔍 Processing context information...")
+            try:
+                context_result = await self.context_agent.process_context_async(context_data)
+                if context_result:
+                    print(f"  ✅ Context processed: {context_result.context_summary}")
+                else:
+                    print("  ℹ️  No contextualizer available - proceeding without additional context")
+            except Exception as e:
+                print(f"  ⚠️  Context processing failed: {e}")
+                print("  📝 Proceeding without additional context...")
+        elif context_data and not self.context_agent:
+            print("  ℹ️  Context data provided but no contextualizer persona configured")
+        
         # Filter agents if specific ones are requested
         agents_to_use = self._filter_agents(selected_agents)
         
         print(f"🎭 Starting async review with {len(agents_to_use)} agents...")
         
+        # Prepare content for review
+        content_to_review = self._prepare_content_for_review(content, context_result)
+        
         # Run all reviews concurrently
         tasks = []
         for agent in agents_to_use:
-            task = self._review_with_agent_async(agent, content)
+            task = self._review_with_agent_async(agent, content_to_review)
             tasks.append(task)
         
         reviews = await asyncio.gather(*tasks, return_exceptions=True)
@@ -291,6 +346,28 @@ class ConversationManager:
             return self.agents
         
         return filtered
+    
+    def _prepare_content_for_review(self, content: str, context_result: Optional[ContextResult]) -> str:
+        """Prepare content for review by combining it with extracted context.
+        
+        Args:
+            content: The cleaned content to review
+            context_result: Optional context extraction result
+            
+        Returns:
+            Formatted content for review agents
+        """
+        if not context_result:
+            return content
+        
+        # Format context for reviewers
+        context_section = self.context_agent.format_context_for_review(context_result)
+        
+        # Combine context with content
+        return f"""{context_section}
+
+## CONTENT TO REVIEW
+{content}"""
     
     def format_results(self, result: ConversationResult, include_content: bool = True) -> str:
         """Format conversation results for display as clean markdown.

@@ -31,8 +31,10 @@ def cli():
 @click.option('--model-url', help='Custom model URL (for LM Studio or Ollama)')
 @click.option('--model-id', help='Custom model ID')
 @click.option('--no-analysis', is_flag=True, help='Disable analysis of reviews (skip analyzer personas)')
+@click.option('--context', type=click.Path(exists=True), help='Path to context file to be processed by contextualizer')
+@click.option('--contextualizer', help='Name of contextualizer persona to use for context processing')
 @click.option('--max-context-length', type=int, help='Maximum context length for analysis (default: 4096, enables chunking if exceeded)')
-def review(content: Optional[str], agents: tuple, async_mode: bool, output: Optional[str], no_content: bool, provider: str, model_url: Optional[str], model_id: Optional[str], no_analysis: bool, max_context_length: Optional[int]):
+def review(content: Optional[str], agents: tuple, async_mode: bool, output: Optional[str], no_content: bool, provider: str, model_url: Optional[str], model_id: Optional[str], no_analysis: bool, context: Optional[str], contextualizer: Optional[str], max_context_length: Optional[int]):
     """Review content with multiple AI agents.
     
     CONTENT can be either text content, a file path, or piped from stdin.
@@ -89,7 +91,8 @@ def review(content: Optional[str], agents: tuple, async_mode: bool, output: Opti
         manager = ConversationManager(
             model_provider=provider,
             model_config=model_config,
-            enable_analysis=not no_analysis
+            enable_analysis=not no_analysis,
+            contextualizer_persona=contextualizer
         )
     except Exception as e:
         click.echo(f"❌ Error initializing conversation manager: {e}", err=True)
@@ -98,14 +101,24 @@ def review(content: Optional[str], agents: tuple, async_mode: bool, output: Opti
     # Convert agents tuple to list
     selected_agents = list(agents) if agents else None
     
+    # Read context file if provided
+    context_data = None
+    if context:
+        try:
+            with open(context, 'r', encoding='utf-8') as f:
+                context_data = f.read()
+            click.echo(f"📄 Loaded context from: {context}")
+        except Exception as e:
+            click.echo(f"⚠️  Failed to read context file: {e}", err=True)
+    
     # Run the review
     try:
         if async_mode:
             click.echo("🚀 Running async review...")
-            result = asyncio.run(manager.run_review_async(content_text, selected_agents))
+            result = asyncio.run(manager.run_review_async(content_text, context_data, selected_agents))
         else:
             click.echo("🚀 Running sync review...")
-            result = manager.run_review(content_text, selected_agents)
+            result = manager.run_review(content_text, context_data, selected_agents)
         
         # Format and display results
         formatted_output = manager.format_results(result, include_content=not no_content)
