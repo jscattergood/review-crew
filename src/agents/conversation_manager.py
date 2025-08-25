@@ -9,6 +9,7 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 from .review_agent import ReviewAgent
 from .analysis_agent import AnalysisAgent, AnalysisResult
@@ -227,6 +228,30 @@ class ConversationManager:
         """Run a synchronous review with selected agents.
 
         Args:
+            content: Content to review or directory path for multi-document review
+            context_data: Optional context information to be processed by contextualizer
+            selected_agents: Optional list of agent names to use (uses all if None)
+
+        Returns:
+            ConversationResult with all reviews
+        """
+        # Check if content is a directory path for multi-document review
+        content_path = Path(content)
+        if content_path.exists() and content_path.is_dir():
+            return self._run_multi_document_review(content_path, context_data, selected_agents)
+        
+        # Single document review
+        return self._run_single_document_review(content, context_data, selected_agents)
+
+    def _run_single_document_review(
+        self,
+        content: str,
+        context_data: Optional[str] = None,
+        selected_agents: Optional[List[str]] = None,
+    ) -> ConversationResult:
+        """Run a synchronous review on single document content.
+
+        Args:
             content: Content to review
             context_data: Optional context information to be processed by contextualizer
             selected_agents: Optional list of agent names to use (uses all if None)
@@ -384,6 +409,175 @@ class ConversationManager:
             f"🎉 Review complete! Collected {len([r for r in reviews if not r.error])} successful reviews"
         )
         return result
+
+    def _run_multi_document_review(
+        self,
+        directory_path: Path,
+        context_data: Optional[str] = None,
+        selected_agents: Optional[List[str]] = None,
+    ) -> ConversationResult:
+        """Run review on multiple documents in a directory.
+
+        Args:
+            directory_path: Path to directory containing documents
+            context_data: Optional context information
+            selected_agents: Optional list of agent names to use
+
+        Returns:
+            ConversationResult with multi-document review
+        """
+        print(f"📂 Processing document collection from: {directory_path}")
+        
+        # Collect all documents from directory
+        documents = self._collect_documents_from_directory(directory_path)
+        if not documents:
+            raise ValueError(f"No readable documents found in {directory_path}")
+        
+        print(f"📄 Found {len(documents)} documents to review")
+        
+        # Compile documents into single content for review
+        compiled_content = self._compile_documents_for_review(documents)
+        
+        # Check if we need chunking due to size
+        max_context_length = self.model_config.get("max_context_length", 4096)
+        content_tokens = self._count_tokens(compiled_content)
+        
+        if content_tokens > max_context_length:
+            print(f"📊 Content is {content_tokens} tokens, chunking for {max_context_length} token limit")
+            # For now, truncate - later we can implement smart chunking
+            compiled_content = self._truncate_to_token_limit(compiled_content, max_context_length - 500)
+        
+        # Check for manifest file in directory
+        manifest_path = directory_path / "manifest.yaml"
+        if manifest_path.exists():
+            print(f"📋 Found manifest file, applying reviewer selection")
+            manifest_config = self._load_manifest(manifest_path)
+            return self._run_manifest_review(compiled_content, context_data, manifest_config)
+        
+        # No manifest - run standard review on compiled content
+        return self._run_single_document_review(compiled_content, context_data, selected_agents)
+
+    def _collect_documents_from_directory(self, directory_path: Path) -> List[Dict[str, str]]:
+        """Collect all readable documents from a directory.
+
+        Args:
+            directory_path: Path to directory
+
+        Returns:
+            List of document dictionaries with 'name' and 'content' keys
+        """
+        documents = []
+        
+        # Common text file extensions to process
+        text_extensions = {'.txt', '.md', '.py', '.js', '.ts', '.html', '.css', '.yaml', '.yml', '.json', '.xml'}
+        
+        for file_path in directory_path.iterdir():
+            if file_path.is_file() and file_path.suffix.lower() in text_extensions:
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    documents.append({
+                        'name': file_path.name,
+                        'content': content
+                    })
+                    print(f"  ✓ Loaded: {file_path.name}")
+                except Exception as e:
+                    print(f"  ⚠️  Skipped {file_path.name}: {e}")
+                    continue
+        
+        return documents
+
+    def _compile_documents_for_review(self, documents: List[Dict[str, str]]) -> str:
+        """Compile multiple documents into a single content string for review.
+
+        Args:
+            documents: List of document dictionaries
+
+        Returns:
+            Compiled content string
+        """
+        compiled_parts = []
+        
+        for doc in documents:
+            compiled_parts.append(f"=== Document: {doc['name']} ===")
+            compiled_parts.append(doc['content'])
+            compiled_parts.append("")  # Empty line between documents
+        
+        return "\n".join(compiled_parts)
+
+    def _load_manifest(self, manifest_path: Path) -> Dict[str, Any]:
+        """Load and parse manifest file.
+        
+        Args:
+            manifest_path: Path to manifest.yaml file
+            
+        Returns:
+            Parsed manifest configuration dictionary
+        """
+        import yaml
+        
+        try:
+            with open(manifest_path, 'r', encoding='utf-8') as f:
+                manifest = yaml.safe_load(f)
+            return manifest
+        except Exception as e:
+            print(f"⚠️  Warning: Failed to parse manifest {manifest_path}: {e}")
+            return {}
+
+    def _run_manifest_review(
+        self,
+        content: str,
+        context_data: Optional[str] = None,
+        manifest_config: Dict[str, Any] = None,
+    ) -> ConversationResult:
+        """Run review based on manifest configuration.
+        
+        Args:
+            content: Content to review
+            context_data: Optional context information
+            manifest_config: Manifest configuration dictionary
+            
+        Returns:
+            ConversationResult with manifest-driven review
+        """
+        if not manifest_config:
+            # Fallback to standard review
+            return self._run_single_document_review(content, context_data, None)
+        
+        review_config = manifest_config.get("review_configuration", {})
+        
+        # Load reviewers based on manifest
+        selected_reviewers = []
+        if review_config:
+            try:
+                selected_reviewers = self.persona_loader.load_reviewers_from_manifest(review_config)
+                print(f"🎯 Manifest specified {len(selected_reviewers)} reviewers")
+            except Exception as e:
+                print(f"⚠️  Error loading reviewers from manifest: {e}")
+                print("📋 Falling back to all available reviewers")
+        
+        # Create temporary agents for this review
+        if selected_reviewers:
+            from .review_agent import ReviewAgent
+            temp_agents = [
+                ReviewAgent(persona, self.model_provider, self.model_config) 
+                for persona in selected_reviewers
+            ]
+            
+            # Store original agents and replace temporarily
+            original_agents = self.agents
+            self.agents = temp_agents
+            
+            try:
+                # Run review with selected agents
+                result = self._run_single_document_review(content, context_data, None)
+                return result
+            finally:
+                # Restore original agents
+                self.agents = original_agents
+        else:
+            # No specific reviewers found, use standard review
+            return self._run_single_document_review(content, context_data, None)
 
     async def run_review_async(
         self,

@@ -98,18 +98,28 @@ def review(
             )
             return
 
-    # Check if content is a file path (skip if from stdin)
+    # Check if content is a file path or directory (skip if from stdin)
     if not from_stdin:
         content_path = Path(content)
-        if content_path.exists() and content_path.is_file():
-            try:
-                with open(content_path, "r", encoding="utf-8") as f:
-                    content_text = f.read()
-                click.echo(f"📁 Reading content from: {content_path}")
-            except Exception as e:
-                click.echo(f"❌ Error reading file {content_path}: {e}", err=True)
+        if content_path.exists():
+            if content_path.is_file():
+                # Single file - existing behavior
+                try:
+                    with open(content_path, "r", encoding="utf-8") as f:
+                        content_text = f.read()
+                    click.echo(f"📁 Reading content from: {content_path}")
+                except Exception as e:
+                    click.echo(f"❌ Error reading file {content_path}: {e}", err=True)
+                    return
+            elif content_path.is_dir():
+                # Directory - new multi-document behavior
+                click.echo(f"📂 Processing document collection from: {content_path}")
+                content_text = str(content_path)  # Pass directory path for manager to handle
+            else:
+                click.echo(f"❌ Path exists but is neither file nor directory: {content_path}", err=True)
                 return
         else:
+            # Not a path, treat as text content
             content_text = content
     else:
         # Content is from stdin, use it directly

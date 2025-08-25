@@ -1,0 +1,1 @@
+"""Multi-document functionality tests."""

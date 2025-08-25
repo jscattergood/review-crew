@@ -205,7 +205,31 @@ class PersonaLoader:
         }
 
     def _load_personas_from_dir(self, directory: Path) -> List[PersonaConfig]:
-        """Load all persona configurations from a directory.
+        """Load all persona configurations from a directory and its subdirectories.
+
+        Args:
+            directory: Directory containing persona YAML files
+
+        Returns:
+            List of PersonaConfig objects
+        """
+        personas = []
+
+        # Load from main directory (flat structure - backwards compatibility)
+        personas.extend(self._load_personas_from_single_dir(directory))
+        
+        # Load from subdirectories (organized structure)
+        for subdirectory in directory.iterdir():
+            if subdirectory.is_dir():
+                subdir_personas = self._load_personas_from_single_dir(subdirectory)
+                personas.extend(subdir_personas)
+                if subdir_personas:
+                    print(f"  ✓ Loaded {len(subdir_personas)} personas from '{subdirectory.name}' category")
+
+        return personas
+
+    def _load_personas_from_single_dir(self, directory: Path) -> List[PersonaConfig]:
+        """Load persona configurations from a single directory (no subdirectories).
 
         Args:
             directory: Directory containing persona YAML files
@@ -257,6 +281,85 @@ class PersonaLoader:
         """
         personas = self.load_reviewer_personas()
         return [persona.name for persona in personas]
+
+    def load_reviewer_personas_by_category(self, categories: List[str]) -> List[PersonaConfig]:
+        """Load reviewer personas from specific categories (sub-folders).
+        
+        Args:
+            categories: List of category folder names (e.g., ['academic', 'content'])
+            
+        Returns:
+            List of PersonaConfig objects from specified categories
+        """
+        reviewers_dir = self.personas_dir / "reviewers"
+        personas = []
+        
+        for category in categories:
+            category_dir = reviewers_dir / category
+            if category_dir.exists():
+                category_personas = self._load_personas_from_single_dir(category_dir)
+                personas.extend(category_personas)
+                print(f"✅ Loaded {len(category_personas)} reviewers from '{category}' category")
+            else:
+                print(f"⚠️  Category '{category}' not found in {reviewers_dir}")
+        
+        return personas
+
+    def load_reviewer_personas_by_names(self, names: List[str]) -> List[PersonaConfig]:
+        """Load specific reviewer personas by name.
+        
+        Args:
+            names: List of exact persona names to load
+            
+        Returns:
+            List of PersonaConfig objects matching the names
+        """
+        all_personas = self.load_reviewer_personas()
+        selected_personas = []
+        
+        for name in names:
+            persona = next((p for p in all_personas if p.name == name), None)
+            if persona:
+                selected_personas.append(persona)
+            else:
+                print(f"⚠️  Reviewer '{name}' not found")
+        
+        return selected_personas
+
+    def load_reviewers_from_manifest(self, manifest_config: Dict[str, Any]) -> List[PersonaConfig]:
+        """Load reviewers based on manifest configuration.
+        
+        Args:
+            manifest_config: Manifest configuration dictionary
+            
+        Returns:
+            List of PersonaConfig objects based on manifest specification
+        """
+        personas = []
+        
+        # Load by categories
+        if "reviewer_categories" in manifest_config:
+            category_personas = self.load_reviewer_personas_by_category(
+                manifest_config["reviewer_categories"]
+            )
+            personas.extend(category_personas)
+        
+        # Load by specific names  
+        if "reviewers" in manifest_config:
+            name_personas = self.load_reviewer_personas_by_names(
+                manifest_config["reviewers"]
+            )
+            personas.extend(name_personas)
+        
+        # Remove duplicates (in case same persona specified in both ways)
+        unique_personas = []
+        seen_names = set()
+        for persona in personas:
+            if persona.name not in seen_names:
+                unique_personas.append(persona)
+                seen_names.add(persona.name)
+        
+        return unique_personas
 
     def setup_custom_config(self) -> None:
         """Set up the custom config directory by copying examples.
