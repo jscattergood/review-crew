@@ -590,10 +590,68 @@ class ConversationManager:
 
         # Combine all context with content
         all_context = "\n".join(context_sections)
-        return f"""{all_context}
+        combined_content = f"""{all_context}
 
 ## CONTENT TO REVIEW
 {content}"""
+
+        # Check if the combined content is too long and truncate if necessary
+        return self._truncate_if_needed(combined_content, content, all_context)
+
+    def _truncate_if_needed(self, combined_content: str, original_content: str, context_content: str) -> str:
+        """Truncate context if the combined content is too long for the model.
+        
+        Args:
+            combined_content: The full combined content (context + original content)
+            original_content: The original content to review (must be preserved)
+            context_content: The context content that can be truncated
+            
+        Returns:
+            Truncated content if necessary, with warning logged
+        """
+        # Rough estimation: 1 token ≈ 4 characters (conservative estimate)
+        chars_per_token = 4
+        
+        # Get max context length from model config, default to 4096 if not set
+        max_context_length = self.model_config.get('max_context_length', 4096)
+        
+        # Reserve tokens for model response and prompt overhead
+        response_buffer = 1000  # tokens for response
+        prompt_overhead = 500   # tokens for system prompt and formatting
+        
+        # Available tokens for input content
+        available_tokens = max_context_length - response_buffer - prompt_overhead
+        available_chars = available_tokens * chars_per_token
+        
+        # Check if truncation is needed
+        if len(combined_content) <= available_chars:
+            return combined_content
+        
+        # Calculate how much context we need to truncate
+        original_content_chars = len(original_content) + 50  # +50 for "## CONTENT TO REVIEW\n" header
+        context_budget = available_chars - original_content_chars
+        
+        if context_budget <= 0:
+            # Original content itself is too long, warn but proceed
+            print(f"⚠️  Warning: Original content ({len(original_content)} chars) exceeds available context budget")
+            print("   Proceeding without context to avoid model errors")
+            return original_content
+        
+        # Truncate context content to fit budget
+        if len(context_content) > context_budget:
+            truncated_context = context_content[:context_budget - 100]  # -100 for truncation message
+            truncation_msg = "\n\n[... Context truncated due to length limits ...]"
+            truncated_context += truncation_msg
+            
+            print(f"⚠️  Warning: Context truncated from {len(context_content)} to {len(truncated_context)} characters")
+            print(f"   Available context budget: {context_budget} chars, Model limit: {max_context_length} tokens")
+            
+            return f"""{truncated_context}
+
+## CONTENT TO REVIEW
+{original_content}"""
+        
+        return combined_content
 
     def format_results(
         self, result: ConversationResult, include_content: bool = True
