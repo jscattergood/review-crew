@@ -54,8 +54,6 @@ class ContextAgent:
             model_config_override=model_config,
         )
 
-
-
     def process_context(self, context_data: str) -> Optional[ContextResult]:
         """Process and format contextual information using the contextualizer persona.
 

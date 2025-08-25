@@ -114,9 +114,14 @@ def review(
             elif content_path.is_dir():
                 # Directory - new multi-document behavior
                 click.echo(f"📂 Processing document collection from: {content_path}")
-                content_text = str(content_path)  # Pass directory path for manager to handle
+                content_text = str(
+                    content_path
+                )  # Pass directory path for manager to handle
             else:
-                click.echo(f"❌ Path exists but is neither file nor directory: {content_path}", err=True)
+                click.echo(
+                    f"❌ Path exists but is neither file nor directory: {content_path}",
+                    err=True,
+                )
                 return
         else:
             # Not a path, treat as text content
@@ -263,7 +268,9 @@ def single(content: str, agent: str, output: Optional[str]):
         result = manager.run_review(content_text, [agent])
 
         # Format and display results
-        formatted_output = manager.format_results(result, include_content=True, include_context=False)
+        formatted_output = manager.format_results(
+            result, include_content=True, include_context=False
+        )
         click.echo(formatted_output)
 
         # Save to file if requested

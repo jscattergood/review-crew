@@ -85,10 +85,10 @@ class ConversationManager:
 
     def _count_tokens(self, text: str) -> int:
         """Count tokens in text using tiktoken.
-        
+
         Args:
             text: Text to count tokens for
-            
+
         Returns:
             Number of tokens
         """
@@ -98,26 +98,28 @@ class ConversationManager:
 
     def _truncate_to_token_limit(self, text: str, target_tokens: int) -> str:
         """Truncate text to the target number of tokens.
-        
+
         Args:
             text: Text to truncate
             target_tokens: Target number of tokens
-            
+
         Returns:
             Truncated text
         """
         if target_tokens <= 0:
             return ""
-        
+
         if tiktoken is None:
-            raise ImportError("tiktoken is required but not installed. Run: pip install tiktoken")
-            
+            raise ImportError(
+                "tiktoken is required but not installed. Run: pip install tiktoken"
+            )
+
         encoding = tiktoken.get_encoding("cl100k_base")
         tokens = encoding.encode(text)
-        
+
         if len(tokens) <= target_tokens:
             return text
-        
+
         # Truncate tokens and decode back to text
         truncated_tokens = tokens[:target_tokens]
         return encoding.decode(truncated_tokens)
@@ -238,8 +240,10 @@ class ConversationManager:
         # Check if content is a directory path for multi-document review
         content_path = Path(content)
         if content_path.exists() and content_path.is_dir():
-            return self._run_multi_document_review(content_path, context_data, selected_agents)
-        
+            return self._run_multi_document_review(
+                content_path, context_data, selected_agents
+            )
+
         # Single document review
         return self._run_single_document_review(content, context_data, selected_agents)
 
@@ -316,8 +320,12 @@ class ConversationManager:
                 error_str = str(e)
                 # Check if this is a context length error during review generation
                 if "context length" in error_str.lower() and "4096" in error_str:
-                    print(f"  ❌ {agent.persona.name} failed due to context length limit (input too large for model)")
-                    print(f"      The model ran out of space before completing the review")
+                    print(
+                        f"  ❌ {agent.persona.name} failed due to context length limit (input too large for model)"
+                    )
+                    print(
+                        f"      The model ran out of space before completing the review"
+                    )
                     print(f"      Try: --max-context-length 8192 or use a larger model")
                     # Mark as failed with helpful error message
                     error_review = ReviewResult(
@@ -394,7 +402,7 @@ class ConversationManager:
 
                 result.analysis_results = analysis_results
                 result.analysis_errors = analysis_errors
-                
+
                 if analysis_results:
                     print(
                         f"✅ Analysis complete! Ran {len(analysis_results)} successful analyzers"
@@ -427,37 +435,47 @@ class ConversationManager:
             ConversationResult with multi-document review
         """
         print(f"📂 Processing document collection from: {directory_path}")
-        
+
         # Collect all documents from directory
         documents = self._collect_documents_from_directory(directory_path)
         if not documents:
             raise ValueError(f"No readable documents found in {directory_path}")
-        
+
         print(f"📄 Found {len(documents)} documents to review")
-        
+
         # Compile documents into single content for review
         compiled_content = self._compile_documents_for_review(documents)
-        
+
         # Check if we need chunking due to size
         max_context_length = self.model_config.get("max_context_length", 4096)
         content_tokens = self._count_tokens(compiled_content)
-        
+
         if content_tokens > max_context_length:
-            print(f"📊 Content is {content_tokens} tokens, chunking for {max_context_length} token limit")
+            print(
+                f"📊 Content is {content_tokens} tokens, chunking for {max_context_length} token limit"
+            )
             # For now, truncate - later we can implement smart chunking
-            compiled_content = self._truncate_to_token_limit(compiled_content, max_context_length - 500)
-        
+            compiled_content = self._truncate_to_token_limit(
+                compiled_content, max_context_length - 500
+            )
+
         # Check for manifest file in directory
         manifest_path = directory_path / "manifest.yaml"
         if manifest_path.exists():
             print(f"📋 Found manifest file, applying reviewer selection")
             manifest_config = self._load_manifest(manifest_path)
-            return self._run_manifest_review(compiled_content, context_data, manifest_config)
-        
-        # No manifest - run standard review on compiled content
-        return self._run_single_document_review(compiled_content, context_data, selected_agents)
+            return self._run_manifest_review(
+                compiled_content, context_data, manifest_config
+            )
 
-    def _collect_documents_from_directory(self, directory_path: Path) -> List[Dict[str, str]]:
+        # No manifest - run standard review on compiled content
+        return self._run_single_document_review(
+            compiled_content, context_data, selected_agents
+        )
+
+    def _collect_documents_from_directory(
+        self, directory_path: Path
+    ) -> List[Dict[str, str]]:
         """Collect all readable documents from a directory.
 
         Args:
@@ -467,24 +485,33 @@ class ConversationManager:
             List of document dictionaries with 'name' and 'content' keys
         """
         documents = []
-        
+
         # Common text file extensions to process
-        text_extensions = {'.txt', '.md', '.py', '.js', '.ts', '.html', '.css', '.yaml', '.yml', '.json', '.xml'}
-        
+        text_extensions = {
+            ".txt",
+            ".md",
+            ".py",
+            ".js",
+            ".ts",
+            ".html",
+            ".css",
+            ".yaml",
+            ".yml",
+            ".json",
+            ".xml",
+        }
+
         for file_path in directory_path.iterdir():
             if file_path.is_file() and file_path.suffix.lower() in text_extensions:
                 try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, "r", encoding="utf-8") as f:
                         content = f.read()
-                    documents.append({
-                        'name': file_path.name,
-                        'content': content
-                    })
+                    documents.append({"name": file_path.name, "content": content})
                     print(f"  ✓ Loaded: {file_path.name}")
                 except Exception as e:
                     print(f"  ⚠️  Skipped {file_path.name}: {e}")
                     continue
-        
+
         return documents
 
     def _compile_documents_for_review(self, documents: List[Dict[str, str]]) -> str:
@@ -497,27 +524,27 @@ class ConversationManager:
             Compiled content string
         """
         compiled_parts = []
-        
+
         for doc in documents:
             compiled_parts.append(f"=== Document: {doc['name']} ===")
-            compiled_parts.append(doc['content'])
+            compiled_parts.append(doc["content"])
             compiled_parts.append("")  # Empty line between documents
-        
+
         return "\n".join(compiled_parts)
 
     def _load_manifest(self, manifest_path: Path) -> Dict[str, Any]:
         """Load and parse manifest file.
-        
+
         Args:
             manifest_path: Path to manifest.yaml file
-            
+
         Returns:
             Parsed manifest configuration dictionary
         """
         import yaml
-        
+
         try:
-            with open(manifest_path, 'r', encoding='utf-8') as f:
+            with open(manifest_path, "r", encoding="utf-8") as f:
                 manifest = yaml.safe_load(f)
             return manifest
         except Exception as e:
@@ -531,43 +558,46 @@ class ConversationManager:
         manifest_config: Dict[str, Any] = None,
     ) -> ConversationResult:
         """Run review based on manifest configuration.
-        
+
         Args:
             content: Content to review
             context_data: Optional context information
             manifest_config: Manifest configuration dictionary
-            
+
         Returns:
             ConversationResult with manifest-driven review
         """
         if not manifest_config:
             # Fallback to standard review
             return self._run_single_document_review(content, context_data, None)
-        
+
         review_config = manifest_config.get("review_configuration", {})
-        
+
         # Load reviewers based on manifest
         selected_reviewers = []
         if review_config:
             try:
-                selected_reviewers = self.persona_loader.load_reviewers_from_manifest(review_config)
+                selected_reviewers = self.persona_loader.load_reviewers_from_manifest(
+                    review_config
+                )
                 print(f"🎯 Manifest specified {len(selected_reviewers)} reviewers")
             except Exception as e:
                 print(f"⚠️  Error loading reviewers from manifest: {e}")
                 print("📋 Falling back to all available reviewers")
-        
+
         # Create temporary agents for this review
         if selected_reviewers:
             from .review_agent import ReviewAgent
+
             temp_agents = [
-                ReviewAgent(persona, self.model_provider, self.model_config) 
+                ReviewAgent(persona, self.model_provider, self.model_config)
                 for persona in selected_reviewers
             ]
-            
+
             # Store original agents and replace temporarily
             original_agents = self.agents
             self.agents = temp_agents
-            
+
             try:
                 # Run review with selected agents
                 result = self._run_single_document_review(content, context_data, None)
@@ -721,7 +751,9 @@ class ConversationManager:
                 for i, analysis_result in enumerate(analysis_task_results):
                     analysis_agent = self.analysis_agents[i]
                     if isinstance(analysis_result, Exception):
-                        error_msg = f"{analysis_agent.persona.name}: {str(analysis_result)}"
+                        error_msg = (
+                            f"{analysis_agent.persona.name}: {str(analysis_result)}"
+                        )
                         analysis_errors.append(error_msg)
                         print(
                             f"  ⚠️  Analysis failed for {analysis_agent.persona.name}: {analysis_result}"
@@ -734,7 +766,7 @@ class ConversationManager:
 
                 result.analysis_results = analysis_results
                 result.analysis_errors = analysis_errors
-                
+
                 if analysis_results:
                     print(
                         f"✅ Async analysis complete! Ran {len(analysis_results)} successful analyzers"
@@ -766,7 +798,9 @@ class ConversationManager:
             error_str = str(e)
             # Check if this is a context length error during review generation
             if "context length" in error_str.lower() and "4096" in error_str:
-                print(f"  ❌ {agent.persona.name} failed due to context length limit (input too large for model)")
+                print(
+                    f"  ❌ {agent.persona.name} failed due to context length limit (input too large for model)"
+                )
                 print(f"      The model ran out of space before completing the review")
                 print(f"      Try: --max-context-length 8192 or use a larger model")
                 # Mark as failed with helpful error message
@@ -881,68 +915,83 @@ class ConversationManager:
         # Check if the combined content is too long and truncate if necessary
         return self._truncate_if_needed(combined_content, content, all_context)
 
-    def _truncate_if_needed(self, combined_content: str, original_content: str, context_content: str) -> str:
+    def _truncate_if_needed(
+        self, combined_content: str, original_content: str, context_content: str
+    ) -> str:
         """Truncate context if the combined content is too long for the model.
-        
+
         Args:
             combined_content: The full combined content (context + original content)
             original_content: The original content to review (must be preserved)
             context_content: The context content that can be truncated
-            
+
         Returns:
             Truncated content if necessary, with warning logged
         """
         # Get max context length from model config, default to 4096 if not set
-        max_context_length = self.model_config.get('max_context_length', 4096)
-        
+        max_context_length = self.model_config.get("max_context_length", 4096)
+
         # Reserve tokens for model response and prompt overhead
         response_buffer = 1000  # tokens for response
-        prompt_overhead = 800   # tokens for system prompt and formatting
-        
+        prompt_overhead = 800  # tokens for system prompt and formatting
+
         # Available tokens for input content
         available_tokens = max_context_length - response_buffer - prompt_overhead
-        
+
         # Count actual tokens in the combined content
         current_tokens = self._count_tokens(combined_content)
-        
-        print(f"📏 Token limit check: {current_tokens} tokens vs {available_tokens} available")
-        
+
+        print(
+            f"📏 Token limit check: {current_tokens} tokens vs {available_tokens} available"
+        )
+
         # Check if truncation is needed
         if current_tokens <= available_tokens:
             return combined_content
-        
+
         # Calculate how much context we need to truncate
         original_content_with_header = f"## CONTENT TO REVIEW\n{original_content}"
         original_tokens = self._count_tokens(original_content_with_header)
         context_budget_tokens = available_tokens - original_tokens
-        
+
         if context_budget_tokens <= 0:
             # Original content itself is too long, warn but proceed
-            print(f"⚠️  Warning: Original content ({original_tokens} tokens) exceeds available context budget")
+            print(
+                f"⚠️  Warning: Original content ({original_tokens} tokens) exceeds available context budget"
+            )
             print("   Proceeding without context to avoid model errors")
             return original_content
-        
+
         # Truncate context content to fit token budget
         context_tokens = self._count_tokens(context_content)
         if context_tokens > context_budget_tokens:
             # Binary search to find the right truncation point
-            truncated_context = self._truncate_to_token_limit(context_content, context_budget_tokens - 50)  # -50 for truncation message
+            truncated_context = self._truncate_to_token_limit(
+                context_content, context_budget_tokens - 50
+            )  # -50 for truncation message
             truncation_msg = "\n\n[... Context truncated due to token limits ...]"
             truncated_context += truncation_msg
-            
+
             final_tokens = self._count_tokens(truncated_context)
-            print(f"⚠️  Warning: Context truncated from {context_tokens} to {final_tokens} tokens")
-            print(f"   Available context budget: {context_budget_tokens} tokens, Model limit: {max_context_length} tokens")
-            
+            print(
+                f"⚠️  Warning: Context truncated from {context_tokens} to {final_tokens} tokens"
+            )
+            print(
+                f"   Available context budget: {context_budget_tokens} tokens, Model limit: {max_context_length} tokens"
+            )
+
             return f"""{truncated_context}
 
 ## CONTENT TO REVIEW
 {original_content}"""
-        
+
         return combined_content
 
     def format_results(
-        self, result: ConversationResult, include_content: bool = True, include_context: bool = False
+        self,
+        result: ConversationResult,
+        include_content: bool = True,
+        include_context: bool = False,
     ) -> str:
         """Format conversation results for display as clean markdown.
 
@@ -994,7 +1043,7 @@ class ConversationManager:
             output.append(
                 f"- **Analysis Results:** {len(result.analysis_results)} analyzers 🧠"
             )
-        if hasattr(result, 'analysis_errors') and result.analysis_errors:
+        if hasattr(result, "analysis_errors") and result.analysis_errors:
             output.append(
                 f"- **Analysis Errors:** {len(result.analysis_errors)} analyzers failed ⚠️"
             )
@@ -1004,7 +1053,9 @@ class ConversationManager:
         if include_context and result.context_results:
             output.append("## Context Information")
             output.append("")
-            output.append("The following context was processed by contextualizers and provided to reviewers:")
+            output.append(
+                "The following context was processed by contextualizers and provided to reviewers:"
+            )
             output.append("")
 
             for i, context_result in enumerate(result.context_results, 1):
@@ -1023,7 +1074,9 @@ class ConversationManager:
                 output.append(context_result.formatted_context)
                 output.append("```")
                 output.append("")
-                if i < len(result.context_results):  # Don't add separator after last context
+                if i < len(
+                    result.context_results
+                ):  # Don't add separator after last context
                     output.append("---")
                     output.append("")
 
@@ -1039,7 +1092,7 @@ class ConversationManager:
 
                 # Extract clean text from feedback (handle both string and dict formats)
                 clean_feedback = self._extract_clean_feedback(review.feedback)
-                
+
                 output.append(clean_feedback)
                 output.append("")
                 output.append("---")
@@ -1056,7 +1109,10 @@ class ConversationManager:
                 # If we can identify the analyzer, use its name
                 if hasattr(analysis, "analyzer_name"):
                     analyzer_name = analysis.analyzer_name
-                elif i <= len(self.analysis_agents) and self.analysis_agents[i - 1].persona:
+                elif (
+                    i <= len(self.analysis_agents)
+                    and self.analysis_agents[i - 1].persona
+                ):
                     analyzer_name = self.analysis_agents[i - 1].persona.name
 
                 output.append(f"### {analyzer_name}")
@@ -1078,15 +1134,19 @@ class ConversationManager:
             output.append("")
 
         # Analysis Errors
-        if hasattr(result, 'analysis_errors') and result.analysis_errors:
+        if hasattr(result, "analysis_errors") and result.analysis_errors:
             output.append("## Analysis Errors")
             output.append("")
-            output.append("The following analyzers failed but reviews were completed successfully:")
+            output.append(
+                "The following analyzers failed but reviews were completed successfully:"
+            )
             output.append("")
             for error in result.analysis_errors:
                 output.append(f"- **{error}**")
             output.append("")
-            output.append("*Note: Reviews are still available above even though analysis failed.*")
+            output.append(
+                "*Note: Reviews are still available above even though analysis failed.*"
+            )
             output.append("")
 
         return "\n".join(output)

@@ -67,8 +67,6 @@ class AnalysisAgent:
             model_config_override=model_config,
         )
 
-
-
     def analyze(
         self, reviews: List[Dict[str, Any]], max_context_length: Optional[int] = None
     ) -> AnalysisResult:
