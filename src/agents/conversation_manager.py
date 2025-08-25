@@ -114,8 +114,12 @@ class ConversationManager:
                         model_provider=self.model_provider,
                         model_config=self.model_config,
                     )
-                    self.context_agents.append(context_agent)
-                    print(f"✅ Created context agent: {persona.name}")
+                    # Only add agents that successfully loaded their persona
+                    if context_agent.persona:
+                        self.context_agents.append(context_agent)
+                        print(f"✅ Created context agent: {persona.name}")
+                    else:
+                        print(f"⚠️  Failed to create context agent for: {persona.name}")
             else:
                 print("ℹ️  No contextualizer personas found")
                 self.context_agents = []
@@ -140,8 +144,12 @@ class ConversationManager:
                         model_provider=self.model_provider,
                         model_config=self.model_config,
                     )
-                    self.analysis_agents.append(analysis_agent)
-                    print(f"✅ Created analysis agent: {persona.name}")
+                    # Only add agents that successfully loaded their persona
+                    if analysis_agent.persona:
+                        self.analysis_agents.append(analysis_agent)
+                        print(f"✅ Created analysis agent: {persona.name}")
+                    else:
+                        print(f"⚠️  Failed to create analysis agent for: {persona.name}")
             else:
                 print("ℹ️  No analyzer personas found")
                 self.analysis_agents = []
@@ -665,7 +673,7 @@ class ConversationManager:
                 # If we can identify the analyzer, use its name
                 if hasattr(analysis, "analyzer_name"):
                     analyzer_name = analysis.analyzer_name
-                elif i <= len(self.analysis_agents):
+                elif i <= len(self.analysis_agents) and self.analysis_agents[i - 1].persona:
                     analyzer_name = self.analysis_agents[i - 1].persona.name
 
                 output.append(f"### {analyzer_name}")
