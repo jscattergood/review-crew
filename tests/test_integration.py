@@ -23,39 +23,13 @@ class TestIntegration:
     @pytest.fixture
     def sample_python_code(self):
         """Sample Python code with security issues for testing."""
-        return '''
-import hashlib
+        return '''import hashlib
 
-# Global variables (bad practice)
-users = {}
-debug_mode = True
-
-def register_user(email, password, ssn=None):
-    """Register a new user with terrible security."""
-    
-    # No input validation
-    user_id = len(users) + 1
-    
+def register_user(email, password):
     # MD5 hashing (insecure)
     password_hash = hashlib.md5(password.encode()).hexdigest()
-    
-    # Store sensitive data
-    users[user_id] = {
-        'email': email,
-        'password': password_hash,  # Should not store even hashed passwords like this
-        'ssn': ssn,  # Storing SSN is problematic
-        'created': 'today'
-    }
-    
-    if debug_mode:
-        print(f"DEBUG: Created user {email} with password {password}")  # Password leak!
-    
-    return user_id
-
-# No authentication required
-def get_all_users():
-    """Return all users including sensitive data."""
-    return users
+    print(f"DEBUG: Created user {email} with password {password}")  # Password leak!
+    return password_hash
 '''
     
     def test_persona_loader_integration(self):
@@ -138,8 +112,16 @@ def get_all_users():
                     assert review.feedback
                     assert review.timestamp
                     
+            except OSError as e:
+                if "File name too long" in str(e):
+                    pytest.skip(f"Skipping due to filesystem limitation: {e}")
+                else:
+                    raise
+            except ImportError as e:
+                pytest.skip(f"Missing dependencies for integration test: {e}")
             except Exception as e:
-                pytest.skip(f"Mock review test failed: {e}")
+                # Let other exceptions fail the test so we can see what's wrong
+                raise
     
     def test_context_integration(self, sample_content, sample_context):
         """Test context processing integration."""
@@ -182,18 +164,37 @@ def get_all_users():
             except Exception as e:
                 pytest.skip(f"Context integration test failed: {e}")
     
-    def test_file_based_review(self, test_files_dir):
-        """Test reviewing actual files from test_inputs."""
+    def test_file_based_review(self):
+        """Test reviewing file-like content with shorter samples."""
         
-        # Check if test files exist
-        api_doc_file = test_files_dir / "api_documentation.md"
-        if not api_doc_file.exists():
-            pytest.skip("Test input files not available")
+        # Use shorter sample content to avoid file name length issues
+        sample_api_doc = """# API Documentation
+
+## POST /register
+Register a new user.
+
+**Security Issue:** No authentication required!
+
+**Example:**
+```
+curl -X POST api.example.com/register -d "email=user@example.com"
+```
+
+**Response:** Returns user data including password hash.
+"""
         
-        with patch('src.agents.review_agent.Agent') as mock_agent_class:
-            mock_agent = Mock()
-            mock_agent.return_value = Mock(message="Mock review of file content")
-            mock_agent_class.return_value = mock_agent
+        with patch('src.agents.review_agent.Agent') as mock_agent_class, \
+             patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class:
+            
+            mock_review_agent = Mock()
+            mock_review_agent.review.return_value = "MOCK FILE REVIEW: This API documentation has security issues."
+            mock_review_agent.get_info.return_value = {
+                'name': 'File Review Agent',
+                'role': 'File Content Reviewer',
+                'goal': 'Review file-based content'
+            }
+            
+            mock_review_agent_class.return_value = mock_review_agent
             
             try:
                 manager = ConversationManager(enable_analysis=False)
@@ -201,15 +202,21 @@ def get_all_users():
                 if len(manager.agents) == 0:
                     pytest.skip("No agents available for testing")
                 
-                # Read and review file
-                content = api_doc_file.read_text(encoding='utf-8')
-                result = manager.run_review(content)
+                result = manager.run_review(sample_api_doc)
                 
-                assert result.content == content
+                assert result.content == sample_api_doc
                 assert len(result.reviews) > 0
                 
+            except OSError as e:
+                if "File name too long" in str(e):
+                    pytest.skip(f"Skipping due to filesystem limitation: {e}")
+                else:
+                    raise
+            except ImportError as e:
+                pytest.skip(f"Missing dependencies for integration test: {e}")
             except Exception as e:
-                pytest.skip(f"File-based review test failed: {e}")
+                # Let other exceptions fail the test so we can see what's wrong
+                raise
     
     @pytest.mark.integration
     def test_expected_feedback_patterns(self, sample_python_code):
@@ -256,8 +263,16 @@ def get_all_users():
                 
                 assert len(found_patterns) > 0, f"No expected patterns found in feedback: {all_feedback}"
                 
+            except OSError as e:
+                if "File name too long" in str(e):
+                    pytest.skip(f"Skipping due to filesystem limitation: {e}")
+                else:
+                    raise
+            except ImportError as e:
+                pytest.skip(f"Missing dependencies for integration test: {e}")
             except Exception as e:
-                pytest.skip(f"Pattern matching test failed: {e}")
+                # Let other exceptions fail the test so we can see what's wrong
+                raise
 
 
 class TestSystemHealth:

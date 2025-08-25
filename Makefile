@@ -22,9 +22,6 @@ help:
 	@echo ""
 	@echo "Setup & Installation:"
 	@echo "  install          Install dependencies using uv"
-	@echo "  install-pip      Install dependencies using pip"
-	@echo "  install-lm       Install with LM Studio support (includes OpenAI)"
-	@echo "  setup            Set up custom persona configurations"
 	@echo ""
 	@echo "Testing & Validation:"
 	@echo "  test             Run all tests"
@@ -35,7 +32,6 @@ help:
 	@echo "  lint             Run linting (flake8)"
 	@echo "  format           Format code (black)"
 	@echo "  check            Run type checking (mypy)"
-	@echo "  dev-install      Install development dependencies"
 	@echo ""
 	@echo "Cleanup:"
 	@echo "  clean            Clean up temporary files"
@@ -54,16 +50,6 @@ help:
 install:
 	@echo "📦 Installing dependencies with uv..."
 	uv sync --group dev
-
-# Setup targets
-setup:
-	@echo "🎭 Setting up persona configurations..."
-	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python setup_personas.py; \
-	else \
-		python3 setup_personas.py; \
-	fi
-
 # Testing targets
 test:
 	@echo "🧪 Running all tests..."
@@ -133,8 +119,6 @@ review-lm-async:
 	@echo "🎭 Starting Review-Crew with LM Studio (async mode)..."
 	$(call run_with_env,python -m src.cli.main review $(ARGS) --provider lm_studio --async-mode,python3 -m src.cli.main review $(ARGS) --provider lm_studio --async-mode)
 
-
-
 agents:
 	@echo "🎭 Available agents:"
 	$(call run_with_env,python -m src.cli.main agents,python3 -m src.cli.main agents)
@@ -161,10 +145,6 @@ clean-config:
 	else \
 		echo "No custom personas to remove."; \
 	fi
-
-# Quick development workflow
-dev: dev-install setup test
-	@echo "🎉 Development environment ready!"
 
 # Show project status
 status:
