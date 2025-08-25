@@ -281,6 +281,255 @@ class TestConversationManager:
             assert "Test context" in prepared
             assert "## CONTENT TO REVIEW" in prepared
             assert sample_content in prepared
+    
+    def test_format_results_basic(self, mock_persona_loader, sample_content):
+        """Test basic format_results functionality."""
+        timestamp = datetime.now()
+        review = ReviewResult(
+            agent_name="Test Agent",
+            agent_role="Tester",
+            feedback="Test feedback",
+            timestamp=timestamp
+        )
+        
+        result = ConversationResult(
+            content=sample_content,
+            reviews=[review],
+            timestamp=timestamp
+        )
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            
+            formatted = manager.format_results(result)
+            
+            assert "# Review-Crew Analysis Results" in formatted
+            assert "## Summary" in formatted
+            assert "## Individual Reviews" in formatted
+            assert "Test Agent" in formatted
+            assert "Test feedback" in formatted
+            assert "Sample API Documentation" in formatted  # Key content from sample
+    
+    def test_format_results_no_content(self, mock_persona_loader, sample_content):
+        """Test format_results with include_content=False."""
+        timestamp = datetime.now()
+        review = ReviewResult(
+            agent_name="Test Agent",
+            agent_role="Tester",
+            feedback="Test feedback",
+            timestamp=timestamp
+        )
+        
+        result = ConversationResult(
+            content=sample_content,
+            reviews=[review],
+            timestamp=timestamp
+        )
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            
+            formatted = manager.format_results(result, include_content=False)
+            
+            assert "# Review-Crew Analysis Results" in formatted
+            assert "## Content Reviewed" not in formatted
+            assert "Sample API Documentation" not in formatted  # Content should not be included
+            assert "Test Agent" in formatted
+            assert "Test feedback" in formatted
+    
+    def test_format_results_with_context_false(self, mock_persona_loader, sample_content):
+        """Test format_results with include_context=False (default)."""
+        timestamp = datetime.now()
+        review = ReviewResult(
+            agent_name="Test Agent",
+            agent_role="Tester",
+            feedback="Test feedback",
+            timestamp=timestamp
+        )
+        
+        context_result = ContextResult(
+            formatted_context="Test context",
+            context_summary="Test summary"
+        )
+        
+        result = ConversationResult(
+            content=sample_content,
+            reviews=[review],
+            context_results=[context_result],
+            timestamp=timestamp
+        )
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            
+            formatted = manager.format_results(result, include_context=False)
+            
+            assert "# Review-Crew Analysis Results" in formatted
+            assert "## Context Information" not in formatted
+            assert "Test context" not in formatted
+            assert "Test summary" not in formatted
+            assert "- **Context Results:** 1 contextualizers 🔍" in formatted
+    
+    def test_format_results_with_context_true(self, mock_persona_loader, sample_content):
+        """Test format_results with include_context=True."""
+        timestamp = datetime.now()
+        review = ReviewResult(
+            agent_name="Test Agent",
+            agent_role="Tester",
+            feedback="Test feedback",
+            timestamp=timestamp
+        )
+        
+        context_result = ContextResult(
+            formatted_context="Test context",
+            context_summary="Test summary"
+        )
+        
+        result = ConversationResult(
+            content=sample_content,
+            reviews=[review],
+            context_results=[context_result],
+            timestamp=timestamp
+        )
+        
+        # Mock context agent with persona
+        mock_context_agent = Mock()
+        mock_context_agent.persona.name = "Test Contextualizer"
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            manager.context_agents = [mock_context_agent]
+            
+            formatted = manager.format_results(result, include_context=True)
+            
+            assert "# Review-Crew Analysis Results" in formatted
+            assert "## Context Information" in formatted
+            assert "Test Contextualizer" in formatted
+            assert "**Summary:** Test summary" in formatted
+            assert "**Formatted Context:**" in formatted
+            assert "Test context" in formatted
+            assert "- **Context Results:** 1 contextualizers 🔍" in formatted
+    
+    def test_format_results_with_multiple_contexts(self, mock_persona_loader, sample_content):
+        """Test format_results with multiple context results."""
+        timestamp = datetime.now()
+        review = ReviewResult(
+            agent_name="Test Agent",
+            agent_role="Tester",
+            feedback="Test feedback",
+            timestamp=timestamp
+        )
+        
+        context_result1 = ContextResult(
+            formatted_context="Test context 1",
+            context_summary="Test summary 1"
+        )
+        
+        context_result2 = ContextResult(
+            formatted_context="Test context 2",
+            context_summary="Test summary 2"
+        )
+        
+        result = ConversationResult(
+            content=sample_content,
+            reviews=[review],
+            context_results=[context_result1, context_result2],
+            timestamp=timestamp
+        )
+        
+        # Mock context agents with personas
+        mock_context_agent1 = Mock()
+        mock_context_agent1.persona.name = "Contextualizer 1"
+        mock_context_agent2 = Mock()
+        mock_context_agent2.persona.name = "Contextualizer 2"
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            manager.context_agents = [mock_context_agent1, mock_context_agent2]
+            
+            formatted = manager.format_results(result, include_context=True)
+            
+            assert "## Context Information" in formatted
+            assert "1. Contextualizer 1" in formatted
+            assert "2. Contextualizer 2" in formatted
+            assert "Test context 1" in formatted
+            assert "Test context 2" in formatted
+            assert "Test summary 1" in formatted
+            assert "Test summary 2" in formatted
+            assert "---" in formatted  # Separator between contexts
+    
+    def test_format_results_with_context_no_agent_names(self, mock_persona_loader, sample_content):
+        """Test format_results with context but no agent names available."""
+        timestamp = datetime.now()
+        review = ReviewResult(
+            agent_name="Test Agent",
+            agent_role="Tester",
+            feedback="Test feedback",
+            timestamp=timestamp
+        )
+        
+        context_result = ContextResult(
+            formatted_context="Test context",
+            context_summary="Test summary"
+        )
+        
+        result = ConversationResult(
+            content=sample_content,
+            reviews=[review],
+            context_results=[context_result],
+            timestamp=timestamp
+        )
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            # No context agents set, should use generic names
+            
+            formatted = manager.format_results(result, include_context=True)
+            
+            assert "## Context Information" in formatted
+            assert "1. Contextualizer 1" in formatted  # Generic name
+            assert "Test context" in formatted
+            assert "Test summary" in formatted
+    
+    def test_format_results_with_failed_reviews(self, mock_persona_loader, sample_content):
+        """Test format_results with failed reviews."""
+        timestamp = datetime.now()
+        successful_review = ReviewResult(
+            agent_name="Good Agent",
+            agent_role="Tester",
+            feedback="Good feedback",
+            timestamp=timestamp
+        )
+        
+        failed_review = ReviewResult(
+            agent_name="Bad Agent",
+            agent_role="Tester",
+            feedback="",
+            timestamp=timestamp,
+            error="Something went wrong"
+        )
+        
+        result = ConversationResult(
+            content=sample_content,
+            reviews=[successful_review, failed_review],
+            timestamp=timestamp
+        )
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            
+            formatted = manager.format_results(result)
+            
+            assert "## Summary" in formatted
+            assert "- **Total Reviews:** 2" in formatted
+            assert "- **Successful:** 1 ✅" in formatted
+            assert "- **Failed:** 1 ❌" in formatted
+            assert "## Individual Reviews" in formatted
+            assert "Good Agent" in formatted
+            assert "Good feedback" in formatted
+            assert "## Failed Reviews" in formatted
+            assert "Bad Agent" in formatted
+            assert "Something went wrong" in formatted
 
 
 class TestReviewResult:

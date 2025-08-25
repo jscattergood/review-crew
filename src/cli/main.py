@@ -55,6 +55,11 @@ def cli():
     type=int,
     help="Maximum context length for analysis (default: 4096, enables chunking if exceeded)",
 )
+@click.option(
+    "--include-context",
+    is_flag=True,
+    help="Include context results from contextualizers in the output",
+)
 def review(
     content: Optional[str],
     agents: tuple,
@@ -67,6 +72,7 @@ def review(
     no_analysis: bool,
     context: Optional[str],
     max_context_length: Optional[int],
+    include_context: bool,
 ):
     """Review content with multiple AI agents.
 
@@ -159,7 +165,7 @@ def review(
 
         # Format and display results
         formatted_output = manager.format_results(
-            result, include_content=not no_content
+            result, include_content=not no_content, include_context=include_context
         )
         click.echo(formatted_output)
 
@@ -247,7 +253,7 @@ def single(content: str, agent: str, output: Optional[str]):
         result = manager.run_review(content_text, [agent])
 
         # Format and display results
-        formatted_output = manager.format_results(result, include_content=True)
+        formatted_output = manager.format_results(result, include_content=True, include_context=False)
         click.echo(formatted_output)
 
         # Save to file if requested

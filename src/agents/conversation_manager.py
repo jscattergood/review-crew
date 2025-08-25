@@ -646,13 +646,14 @@ class ConversationManager:
         return combined_content
 
     def format_results(
-        self, result: ConversationResult, include_content: bool = True
+        self, result: ConversationResult, include_content: bool = True, include_context: bool = False
     ) -> str:
         """Format conversation results for display as clean markdown.
 
         Args:
             result: ConversationResult to format
             include_content: Whether to include the original content
+            include_context: Whether to include the context results from contextualizers
 
         Returns:
             Formatted markdown string
@@ -689,11 +690,42 @@ class ConversationManager:
         output.append(f"- **Successful:** {len(successful_reviews)} ✅")
         if failed_reviews:
             output.append(f"- **Failed:** {len(failed_reviews)} ❌")
+        if result.context_results:
+            output.append(
+                f"- **Context Results:** {len(result.context_results)} contextualizers 🔍"
+            )
         if result.analysis_results:
             output.append(
                 f"- **Analysis Results:** {len(result.analysis_results)} analyzers 🧠"
             )
         output.append("")
+
+        # Context Results Section
+        if include_context and result.context_results:
+            output.append("## Context Information")
+            output.append("")
+            output.append("The following context was processed by contextualizers and provided to reviewers:")
+            output.append("")
+
+            for i, context_result in enumerate(result.context_results, 1):
+                # Try to find the corresponding context agent to get its name
+                context_agent_name = f"Contextualizer {i}"
+                if i <= len(self.context_agents) and self.context_agents[i - 1].persona:
+                    context_agent_name = self.context_agents[i - 1].persona.name
+
+                output.append(f"### {i}. {context_agent_name}")
+                output.append("")
+                output.append(f"**Summary:** {context_result.context_summary}")
+                output.append("")
+                output.append("**Formatted Context:**")
+                output.append("")
+                output.append("```")
+                output.append(context_result.formatted_context)
+                output.append("```")
+                output.append("")
+                if i < len(result.context_results):  # Don't add separator after last context
+                    output.append("---")
+                    output.append("")
 
         # Individual Reviews
         if successful_reviews:
