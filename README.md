@@ -49,7 +49,7 @@ review-crew/
 │       ├── contextualizers/  # Your custom contextualizer personas
 │       ├── reviewers/   # Your custom review personas
 │       └── analyzers/   # Your custom analysis personas
-└── requirements.txt     # Dependencies
+└── pyproject.toml      # Dependencies (uv)
 ```
 
 ## Getting Started
@@ -80,8 +80,7 @@ make test-lm-studio
 ### Manual Setup
 1. **Install dependencies**: 
    - With uv: `uv sync`
-   - With pip: `pip install -r requirements.txt`
-   - For LM Studio: `pip install -e .[lm-studio]` (includes OpenAI package)
+   - For LM Studio: `uv sync --extra lm-studio` (includes OpenAI package)
 2. **Setup personas**: `python setup_personas.py` (copies examples to config/)
 3. **Customize personas**: Edit files in `config/personas/` to match your review needs
 4. **Test configuration**: `python -m src.config.persona_loader`
@@ -367,13 +366,13 @@ python -m src.cli.main review "test" --provider lm_studio --model-url http://loc
 **Missing Dependencies:**
 ```bash
 # For LM Studio support
-pip install -e .[lm-studio]
+uv sync --extra lm-studio
 
 # For Ollama support  
-pip install -e .[ollama]
+uv sync --extra ollama
 
 # Reinstall everything
-make clean && make install-pip && make setup
+make clean && make install && make setup
 ```
 
 **Persona Configuration Errors:**
@@ -403,9 +402,9 @@ echo "REVIEW_CREW_PERSONAS_DIR=examples/personas" > .env
 
 **Virtual Environment Issues:**
 ```bash
-# Create fresh environment
+# Create fresh environment with uv
 rm -rf .venv
-python3 -m venv .venv
-source .venv/bin/activate
-make install-pip
+uv venv
+source .venv/bin/activate  # or `. .venv/bin/activate`
+make install
 ```
