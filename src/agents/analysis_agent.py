@@ -19,13 +19,14 @@ from ..config.persona_loader import PersonaConfig
 @dataclass
 class AnalysisResult:
     """Result from analysis of multiple agent reviews."""
+
     synthesis: str
     personal_statement_summary: Optional[str] = None
     key_themes: List[str] = None
     conflicting_feedback: List[Dict[str, Any]] = None
     priority_recommendations: List[str] = None
     timestamp: datetime = None
-    
+
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now()
@@ -39,10 +40,15 @@ class AnalysisResult:
 
 class AnalysisAgent:
     """Agent that performs analysis on feedback from multiple review agents based on loaded persona."""
-    
-    def __init__(self, persona_name: str = 'meta_analysis', model_provider: str = 'bedrock', model_config: Optional[Dict[str, Any]] = None):
+
+    def __init__(
+        self,
+        persona_name: str = "meta_analysis",
+        model_provider: str = "bedrock",
+        model_config: Optional[Dict[str, Any]] = None,
+    ):
         """Initialize the analysis agent.
-        
+
         Args:
             persona_name: Name of the analyzer persona to load (without .yaml extension)
             model_provider: Model provider to use ('bedrock', 'lm_studio', 'ollama')
@@ -51,51 +57,51 @@ class AnalysisAgent:
         self.persona_name = persona_name
         self.model_provider = model_provider
         self.model_config = model_config or {}
-        
+
         # Load the specified analyzer persona
         self.persona = self._load_analyzer_persona(persona_name)
-        
+
         # Create the underlying review agent only if persona is loaded
         if self.persona:
             self.agent = ReviewAgent(
                 self.persona,
                 model_provider=model_provider,
-                model_config_override=model_config
+                model_config_override=model_config,
             )
         else:
             self.agent = None
-    
+
     def _load_analyzer_persona(self, persona_name: str) -> Optional[PersonaConfig]:
         """Load an analyzer persona configuration."""
         try:
             from ..config.persona_loader import PersonaLoader
-            import os
+
             loader = PersonaLoader()
-            
-            # Try multiple possible paths for the persona file
-            possible_paths = [
-                os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'personas', 'analyzers', f'{persona_name}.yaml'),
-                os.path.join(os.path.dirname(__file__), '..', '..', 'examples', 'personas', 'analyzers', f'{persona_name}.yaml')
-            ]
-            
-            for path in possible_paths:
-                if os.path.exists(path):
-                    return loader.load_persona(path)
-            
-            # No persona file found
-            return None
-            
+
+            # Check in the analyzers directory
+            analyzers_dir = loader.personas_dir / "analyzers"
+            persona_path = analyzers_dir / f"{persona_name}.yaml"
+
+            if persona_path.exists():
+                return loader.load_persona(persona_path)
+            else:
+                print(f"⚠️  No analyzer persona found: {persona_name}")
+                print(f"   Expected location: {persona_path}")
+                return None
+
         except Exception as e:
-            print(f"Error loading analyzer persona '{persona_name}': {e}")
+            print(f"⚠️  Could not load analyzer persona '{persona_name}': {e}")
             return None
-    
-    def analyze(self, reviews: List[Dict[str, Any]], max_context_length: Optional[int] = None) -> AnalysisResult:
+
+    def analyze(
+        self, reviews: List[Dict[str, Any]], max_context_length: Optional[int] = None
+    ) -> AnalysisResult:
         """Perform analysis on multiple agent reviews with optional chunking.
-        
+
         Args:
             reviews: List of review results from other agents
             max_context_length: Maximum context length for chunking (if None, no chunking)
-            
+
         Returns:
             AnalysisResult with synthesized analysis
         """
@@ -103,52 +109,57 @@ class AnalysisAgent:
         if not self.persona or not self.agent:
             return AnalysisResult(
                 synthesis=f"No analysis performed. Analyzer persona '{self.persona_name}' not found. "
-                         f"Please create {self.persona_name}.yaml in config/personas/analyzers/ or examples/personas/analyzers/"
+                f"Please create {self.persona_name}.yaml in config/personas/analyzers/ or examples/personas/analyzers/"
             )
-        
+
         # Check if we need to use chunking strategy
         if max_context_length and self._should_chunk(reviews, max_context_length):
             return self._analyze_with_chunking(reviews, max_context_length)
         else:
             return self._analyze_full_context(reviews)
-    
+
     def _analyze_full_context(self, reviews: List[Dict[str, Any]]) -> AnalysisResult:
         """Perform analysis with full context (original method)."""
         # Format reviews for the prompt
         formatted_reviews = self._format_reviews_for_analysis(reviews)
-        
+
         # Create the analysis prompt by manually formatting it
         # (since ReviewAgent.review() only expects {content} placeholder)
-        analysis_prompt = self.persona.prompt_template.format(
-            reviews=formatted_reviews
-        )
-        
+        analysis_prompt = self.persona.prompt_template.format(reviews=formatted_reviews)
+
         # Get the analysis by calling the underlying agent directly
         # We bypass the ReviewAgent.review() method since it expects a different prompt format
         result = self.agent.agent(analysis_prompt)
-        
+
         # Extract the text content from the response
-        if hasattr(result, 'message'):
-            if isinstance(result.message, dict) and 'content' in result.message:
-                if isinstance(result.message['content'], list) and len(result.message['content']) > 0:
-                    synthesis = result.message['content'][0].get('text', str(result.message))
+        if hasattr(result, "message"):
+            if isinstance(result.message, dict) and "content" in result.message:
+                if (
+                    isinstance(result.message["content"], list)
+                    and len(result.message["content"]) > 0
+                ):
+                    synthesis = result.message["content"][0].get(
+                        "text", str(result.message)
+                    )
                 else:
-                    synthesis = str(result.message['content'])
+                    synthesis = str(result.message["content"])
             else:
                 synthesis = str(result.message)
         else:
             synthesis = str(result)
-        
+
         # Parse the structured response
         return self._parse_meta_analysis_response(synthesis)
-    
-    async def analyze_async(self, reviews: List[Dict[str, Any]], max_context_length: Optional[int] = None) -> AnalysisResult:
+
+    async def analyze_async(
+        self, reviews: List[Dict[str, Any]], max_context_length: Optional[int] = None
+    ) -> AnalysisResult:
         """Perform asynchronous meta-analysis on multiple agent reviews.
-        
+
         Args:
             reviews: List of review results from other agents
             max_context_length: Maximum context length for chunking (if None, no chunking)
-            
+
         Returns:
             AnalysisResult with synthesized analysis
         """
@@ -156,232 +167,253 @@ class AnalysisAgent:
         if not self.persona or not self.agent:
             return AnalysisResult(
                 synthesis=f"No analysis performed. Analyzer persona '{self.persona_name}' not found. "
-                         f"Please create {self.persona_name}.yaml in config/personas/analyzers/ or examples/personas/analyzers/"
+                f"Please create {self.persona_name}.yaml in config/personas/analyzers/ or examples/personas/analyzers/"
             )
-        
+
         # Check if we need to use chunking strategy
         if max_context_length and self._should_chunk(reviews, max_context_length):
             # Note: For async, we'll use the sync chunking method for now
             # In a full implementation, we'd make the chunking async too
             return self._analyze_with_chunking(reviews, max_context_length)
-        
+
         # Format reviews for the prompt
         formatted_reviews = self._format_reviews_for_analysis(reviews)
-        
+
         # Create the analysis prompt by manually formatting it
         # (since ReviewAgent.review_async() only expects {content} placeholder)
-        analysis_prompt = self.persona.prompt_template.format(
-            reviews=formatted_reviews
-        )
-        
+        analysis_prompt = self.persona.prompt_template.format(reviews=formatted_reviews)
+
         # Get the meta-analysis by calling the underlying agent directly
         # We bypass the ReviewAgent.review_async() method since it expects a different prompt format
         result = await self.agent.agent.invoke_async(analysis_prompt)
-        
+
         # Extract the text content from the response
-        if hasattr(result, 'message'):
-            if isinstance(result.message, dict) and 'content' in result.message:
-                if isinstance(result.message['content'], list) and len(result.message['content']) > 0:
-                    synthesis = result.message['content'][0].get('text', str(result.message))
+        if hasattr(result, "message"):
+            if isinstance(result.message, dict) and "content" in result.message:
+                if (
+                    isinstance(result.message["content"], list)
+                    and len(result.message["content"]) > 0
+                ):
+                    synthesis = result.message["content"][0].get(
+                        "text", str(result.message)
+                    )
                 else:
-                    synthesis = str(result.message['content'])
+                    synthesis = str(result.message["content"])
             else:
                 synthesis = str(result.message)
         else:
             synthesis = str(result)
-        
+
         # Parse the structured response
         return self._parse_meta_analysis_response(synthesis)
-    
+
     def _format_reviews_for_analysis(self, reviews: List[Dict[str, Any]]) -> str:
         """Format individual reviews for meta-analysis."""
         formatted = []
-        
+
         for i, review in enumerate(reviews, 1):
-            if review.get('error'):
+            if review.get("error"):
                 continue  # Skip failed reviews
-                
-            agent_name = review.get('agent_name', f'Reviewer {i}')
-            agent_role = review.get('agent_role', 'Unknown Role')
-            feedback = review.get('feedback', '')
-            
-            formatted.append(f"""
+
+            agent_name = review.get("agent_name", f"Reviewer {i}")
+            agent_role = review.get("agent_role", "Unknown Role")
+            feedback = review.get("feedback", "")
+
+            formatted.append(
+                f"""
 ### Review {i}: {agent_name} ({agent_role})
 {feedback}
-""")
-        
+"""
+            )
+
         return "\n".join(formatted)
-    
-    def _should_chunk(self, reviews: List[Dict[str, Any]], max_context_length: int) -> bool:
+
+    def _should_chunk(
+        self, reviews: List[Dict[str, Any]], max_context_length: int
+    ) -> bool:
         """Determine if chunking is needed based on estimated token count.
-        
+
         Args:
             reviews: List of reviews
             max_context_length: Maximum context length
-            
+
         Returns:
             True if chunking is needed
         """
         # Rough estimation: 1 token ≈ 4 characters (conservative estimate)
         chars_per_token = 4
-        
+
         # Estimate token count for reviews only
         # content_tokens = 0  # No longer using original content
         reviews_text = self._format_reviews_for_analysis(reviews)
         reviews_tokens = len(reviews_text) // chars_per_token
-        
+
         # Add buffer for prompt template and response
         prompt_buffer = 500  # tokens for prompt template
         response_buffer = 1000  # tokens for response
-        
+
         total_estimated_tokens = reviews_tokens + prompt_buffer + response_buffer
-        
+
         return total_estimated_tokens > max_context_length
-    
-    def _analyze_with_chunking(self, reviews: List[Dict[str, Any]], max_context_length: int) -> AnalysisResult:
+
+    def _analyze_with_chunking(
+        self, reviews: List[Dict[str, Any]], max_context_length: int
+    ) -> AnalysisResult:
         """Perform analysis using chunking strategy for large review sets.
-        
+
         Args:
             reviews: List of reviews
             max_context_length: Maximum context length
-            
+
         Returns:
             AnalysisResult with synthesized analysis
         """
-        print(f"🔄 Using chunking strategy for {len(reviews)} reviews (context limit: {max_context_length})")
-        
+        print(
+            f"🔄 Using chunking strategy for {len(reviews)} reviews (context limit: {max_context_length})"
+        )
+
         # Create chunks of reviews
         review_chunks = self._create_review_chunks(reviews, max_context_length)
-        
+
         # Analyze each chunk
         chunk_analyses = []
         for i, chunk in enumerate(review_chunks, 1):
             print(f"📝 Analyzing chunk {i}/{len(review_chunks)} ({len(chunk)} reviews)")
-            
+
             # Create a modified prompt for chunk analysis
             chunk_prompt = self._create_chunk_analysis_prompt()
-            
+
             # Format the chunk
             formatted_chunk = self._format_reviews_for_analysis(chunk)
-            
+
             # Create analysis prompt for this chunk
             analysis_prompt = chunk_prompt.format(
-                reviews=formatted_chunk,
-                chunk_number=i,
-                total_chunks=len(review_chunks)
+                reviews=formatted_chunk, chunk_number=i, total_chunks=len(review_chunks)
             )
-            
+
             # Get analysis for this chunk
             result = self.agent.agent(analysis_prompt)
-            
+
             # Extract text content
-            if hasattr(result, 'message'):
-                if isinstance(result.message, dict) and 'content' in result.message:
-                    if isinstance(result.message['content'], list) and len(result.message['content']) > 0:
-                        chunk_analysis = result.message['content'][0].get('text', str(result.message))
+            if hasattr(result, "message"):
+                if isinstance(result.message, dict) and "content" in result.message:
+                    if (
+                        isinstance(result.message["content"], list)
+                        and len(result.message["content"]) > 0
+                    ):
+                        chunk_analysis = result.message["content"][0].get(
+                            "text", str(result.message)
+                        )
                     else:
-                        chunk_analysis = str(result.message['content'])
+                        chunk_analysis = str(result.message["content"])
                 else:
                     chunk_analysis = str(result.message)
             else:
                 chunk_analysis = str(result)
-            
+
             chunk_analyses.append(chunk_analysis)
-        
+
         # Synthesize all chunk analyses into final result
         print("🔄 Synthesizing chunk analyses into final result...")
         return self._synthesize_chunk_analyses(chunk_analyses)
-    
+
     def _parse_meta_analysis_response(self, response: str) -> AnalysisResult:
         """Parse the structured meta-analysis response."""
         # For now, return the full response as synthesis
         # In a more sophisticated implementation, we could parse sections
-        
+
         # Try to extract personal statement summary if it exists
-        personal_statement_summary = self._extract_section(response, "PERSONAL STATEMENT SUMMARY")
-        
+        personal_statement_summary = self._extract_section(
+            response, "PERSONAL STATEMENT SUMMARY"
+        )
+
         # Try to extract key themes
         key_themes = self._extract_list_section(response, "KEY THEMES IDENTIFIED")
-        
+
         # Try to extract priority recommendations
-        priority_recommendations = self._extract_list_section(response, "PRIORITY ACTION ITEMS")
-        
+        priority_recommendations = self._extract_list_section(
+            response, "PRIORITY ACTION ITEMS"
+        )
+
         return AnalysisResult(
             synthesis=response,
             personal_statement_summary=personal_statement_summary,
             key_themes=key_themes,
-            priority_recommendations=priority_recommendations
+            priority_recommendations=priority_recommendations,
         )
-    
+
     def _extract_section(self, text: str, section_header: str) -> Optional[str]:
         """Extract a specific section from the structured response."""
         import re
-        
+
         # Look for the section header
         pattern = rf"## {section_header}.*?\n(.*?)(?=\n## |\n$|\Z)"
         match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-        
+
         if match:
             content = match.group(1).strip()
             # Clean up the content
-            content = re.sub(r'\n+', ' ', content)  # Replace multiple newlines with space
+            content = re.sub(
+                r"\n+", " ", content
+            )  # Replace multiple newlines with space
             return content
-        
+
         return None
-    
+
     def _extract_list_section(self, text: str, section_header: str) -> List[str]:
         """Extract a list section from the structured response."""
         section_content = self._extract_section(text, section_header)
-        
+
         if not section_content:
             return []
-        
+
         # Split by common list indicators
         import re
-        items = re.split(r'[•\-\*]\s*|\d+\.\s*', section_content)
-        
+
+        items = re.split(r"[•\-\*]\s*|\d+\.\s*", section_content)
+
         # Clean up and filter items
         cleaned_items = []
         for item in items:
             item = item.strip()
             if item and len(item) > 10:  # Filter out very short items
                 cleaned_items.append(item)
-        
-        return cleaned_items[:5]  # Return top 5 items
-    
 
-    
+        return cleaned_items[:5]  # Return top 5 items
+
     def get_info(self) -> Dict[str, Any]:
         """Get information about this analysis agent."""
         if not self.persona:
             return {
-                'name': f'Analysis Agent ({self.persona_name})',
-                'role': 'No persona loaded',
-                'goal': f'Analyzer persona "{self.persona_name}" not found',
-                'capabilities': [],
-                'status': 'inactive - no persona file found'
+                "name": f"Analysis Agent ({self.persona_name})",
+                "role": "No persona loaded",
+                "goal": f'Analyzer persona "{self.persona_name}" not found',
+                "capabilities": [],
+                "status": "inactive - no persona file found",
             }
-        
+
         return {
-            'name': self.persona.name,
-            'role': self.persona.role,
-            'goal': self.persona.goal,
-            'capabilities': [
-                'Synthesize multiple reviewer feedback',
-                'Resolve conflicting recommendations', 
-                'Prioritize action items',
-                'Perform analysis based on loaded persona'
+            "name": self.persona.name,
+            "role": self.persona.role,
+            "goal": self.persona.goal,
+            "capabilities": [
+                "Synthesize multiple reviewer feedback",
+                "Resolve conflicting recommendations",
+                "Prioritize action items",
+                "Perform analysis based on loaded persona",
             ],
-            'status': 'active'
+            "status": "active",
         }
-    
-    def _create_review_chunks(self, reviews: List[Dict[str, Any]], max_context_length: int) -> List[List[Dict[str, Any]]]:
+
+    def _create_review_chunks(
+        self, reviews: List[Dict[str, Any]], max_context_length: int
+    ) -> List[List[Dict[str, Any]]]:
         """Create chunks of reviews that fit within context limits.
-        
+
         Args:
             reviews: List of all reviews
             max_context_length: Maximum context length
-            
+
         Returns:
             List of review chunks
         """
@@ -389,34 +421,37 @@ class AnalysisAgent:
         # content_tokens = 0  # No longer using original content
         prompt_buffer = 800  # tokens for prompt template and instructions
         response_buffer = 1000  # tokens for response
-        
+
         # Available tokens for reviews in each chunk
         available_tokens = max_context_length - prompt_buffer - response_buffer
-        
+
         chunks = []
         current_chunk = []
         current_chunk_tokens = 0
-        
+
         for review in reviews:
             # Estimate tokens for this review
             review_text = self._format_single_review_for_analysis(review)
             review_tokens = len(review_text) // chars_per_token
-            
+
             # If adding this review would exceed the limit, start a new chunk
-            if current_chunk and (current_chunk_tokens + review_tokens) > available_tokens:
+            if (
+                current_chunk
+                and (current_chunk_tokens + review_tokens) > available_tokens
+            ):
                 chunks.append(current_chunk)
                 current_chunk = [review]
                 current_chunk_tokens = review_tokens
             else:
                 current_chunk.append(review)
                 current_chunk_tokens += review_tokens
-        
+
         # Add the last chunk if it has reviews
         if current_chunk:
             chunks.append(current_chunk)
-        
+
         return chunks
-    
+
     def _create_chunk_analysis_prompt(self) -> str:
         """Create a modified prompt template for chunk analysis."""
         return """You are analyzing a subset of reviews. This is chunk {chunk_number} of {total_chunks} total chunks.
@@ -439,13 +474,13 @@ Analyze ONLY the reviews in this chunk and provide:
 - Any standout comments or unique perspectives
 
 Focus on extracting the key insights from this specific set of reviews. Keep your analysis concise and focused on the most important points."""
-    
+
     def _synthesize_chunk_analyses(self, chunk_analyses: List[str]) -> AnalysisResult:
         """Synthesize multiple chunk analyses into a final result.
-        
+
         Args:
             chunk_analyses: List of analysis results from each chunk
-            
+
         Returns:
             Final AnalysisResult
         """
@@ -454,10 +489,10 @@ Focus on extracting the key insights from this specific set of reviews. Keep you
 
 ## Chunk Analyses:
 """
-        
+
         for i, analysis in enumerate(chunk_analyses, 1):
             synthesis_prompt += f"\n### Chunk {i} Analysis:\n{analysis}\n"
-        
+
         synthesis_prompt += """
 
 ## Your Task:
@@ -482,45 +517,53 @@ Rank the top 5 most important changes/improvements based on all feedback.
 Provide strategic advice based on the complete picture from all reviews.
 
 Focus on creating a comprehensive synthesis that captures the full scope of all reviewer feedback. Write as if you analyzed all reviews directly, not as chunks."""
-        
+
         # Get the final synthesis
         result = self.agent.agent(synthesis_prompt)
-        
+
         # Extract text content
-        if hasattr(result, 'message'):
-            if isinstance(result.message, dict) and 'content' in result.message:
-                if isinstance(result.message['content'], list) and len(result.message['content']) > 0:
-                    synthesis = result.message['content'][0].get('text', str(result.message))
+        if hasattr(result, "message"):
+            if isinstance(result.message, dict) and "content" in result.message:
+                if (
+                    isinstance(result.message["content"], list)
+                    and len(result.message["content"]) > 0
+                ):
+                    synthesis = result.message["content"][0].get(
+                        "text", str(result.message)
+                    )
                 else:
-                    synthesis = str(result.message['content'])
+                    synthesis = str(result.message["content"])
             else:
                 synthesis = str(result.message)
         else:
             synthesis = str(result)
-        
+
         # Parse the final synthesis
         return self._parse_meta_analysis_response(synthesis)
-    
+
     def _format_single_review_for_analysis(self, review: Dict[str, Any]) -> str:
         """Format a single review for analysis (used in chunking)."""
-        agent_name = review.get('agent_name', 'Unknown Agent')
-        agent_role = review.get('agent_role', 'Unknown Role')
-        
-        if review.get('error'):
+        agent_name = review.get("agent_name", "Unknown Agent")
+        agent_role = review.get("agent_role", "Unknown Role")
+
+        if review.get("error"):
             return f"**{agent_name}** ({agent_role}): ERROR - {review['error']}\n"
-        
-        feedback = review.get('feedback', review.get('review', ''))
-        
+
+        feedback = review.get("feedback", review.get("review", ""))
+
         # Handle different feedback formats
         if isinstance(feedback, dict):
-            if 'content' in feedback:
-                if isinstance(feedback['content'], list) and len(feedback['content']) > 0:
-                    feedback_text = feedback['content'][0].get('text', str(feedback))
+            if "content" in feedback:
+                if (
+                    isinstance(feedback["content"], list)
+                    and len(feedback["content"]) > 0
+                ):
+                    feedback_text = feedback["content"][0].get("text", str(feedback))
                 else:
-                    feedback_text = str(feedback.get('content', feedback))
+                    feedback_text = str(feedback.get("content", feedback))
             else:
                 feedback_text = str(feedback)
         else:
             feedback_text = str(feedback)
-        
+
         return f"**{agent_name}** ({agent_role}):\n{feedback_text}\n\n"

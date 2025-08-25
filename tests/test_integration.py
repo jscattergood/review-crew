@@ -164,7 +164,6 @@ def get_all_users():
             
             try:
                 manager = ConversationManager(
-                    contextualizer_persona="contextualizer",
                     enable_analysis=False
                 )
                 
@@ -175,9 +174,10 @@ def get_all_users():
                 result = manager.run_review(sample_content, context_data=sample_context)
                 
                 # Verify context was processed
-                if result.context_result:
-                    assert result.context_result.formatted_context
-                    assert result.context_result.context_summary
+                if result.context_results:
+                    assert len(result.context_results) > 0
+                    assert result.context_results[0].formatted_context
+                    assert result.context_results[0].context_summary
                     
             except Exception as e:
                 pytest.skip(f"Context integration test failed: {e}")

@@ -11,43 +11,39 @@ from src.agents.context_agent import ContextResult
 class TestConversationManager:
     """Test ConversationManager functionality."""
     
-    @patch('src.agents.conversation_manager.ContextAgent')
-    @patch('src.agents.conversation_manager.AnalysisAgent')
+    @patch('src.agents.conversation_manager.ConversationManager._load_analyzers')
+    @patch('src.agents.conversation_manager.ConversationManager._load_contextualizers')
     @patch('src.agents.conversation_manager.ConversationManager._load_agents')
-    def test_init_with_all_features(self, mock_load_agents, mock_analysis_agent, mock_context_agent, mock_persona_loader):
+    def test_init_with_all_features(self, mock_load_agents, mock_load_contextualizers, mock_load_analyzers, mock_persona_loader):
         """Test ConversationManager initialization with all features enabled."""
-        mock_analysis_instance = Mock()
-        mock_analysis_agent.return_value = mock_analysis_instance
-        mock_context_instance = Mock()
-        mock_context_agent.return_value = mock_context_instance
-        
         manager = ConversationManager(
             persona_loader=mock_persona_loader,
             model_provider="test",
-            enable_analysis=True,
-            contextualizer_persona="test_contextualizer"
+            enable_analysis=True
         )
         
         assert manager.persona_loader == mock_persona_loader
         assert manager.model_provider == "test"
         assert manager.enable_analysis is True
-        assert manager.contextualizer_persona == "test_contextualizer"
-        assert manager.analysis_agent == mock_analysis_instance
-        assert manager.context_agent == mock_context_instance
+        assert manager.context_agents == []
+        assert manager.analysis_agents == []
         
         mock_load_agents.assert_called_once()
-        mock_analysis_agent.assert_called_once()
-        mock_context_agent.assert_called_once()
+        mock_load_contextualizers.assert_called_once()
+        mock_load_analyzers.assert_called_once()
     
+    @patch('src.agents.conversation_manager.ConversationManager._load_contextualizers')
     @patch('src.agents.conversation_manager.ConversationManager._load_agents')
-    def test_init_minimal(self, mock_load_agents):
+    def test_init_minimal(self, mock_load_agents, mock_load_contextualizers):
         """Test ConversationManager initialization with minimal features."""
-        manager = ConversationManager(enable_analysis=False, contextualizer_persona=None)
+        manager = ConversationManager(enable_analysis=False)
         
         assert manager.enable_analysis is False
-        assert manager.contextualizer_persona is None
-        assert manager.analysis_agent is None
-        assert manager.context_agent is None
+        assert manager.analysis_agents == []
+        assert manager.context_agents == []
+        
+        mock_load_agents.assert_called_once()
+        mock_load_contextualizers.assert_called_once()
     
     @patch('src.agents.conversation_manager.ReviewAgent')
     def test_load_agents_success(self, mock_review_agent, mock_persona_loader, mock_persona):
@@ -146,15 +142,14 @@ class TestConversationManager:
             with patch('src.agents.conversation_manager.ConversationManager._filter_agents', return_value=[mock_agent]):
                 manager = ConversationManager(
                     persona_loader=mock_persona_loader,
-                    enable_analysis=False,
-                    contextualizer_persona="test_contextualizer"
+                    enable_analysis=False
                 )
                 manager.agents = [mock_agent]
-                manager.context_agent = mock_context_agent
+                manager.context_agents = [mock_context_agent]
                 
                 result = manager.run_review(sample_content, context_data=sample_context)
                 
-                assert result.context_result == mock_context_result
+                assert result.context_results == [mock_context_result]
                 mock_context_agent.process_context.assert_called_once_with(sample_context)
     
     def test_run_review_agent_failure(self, mock_persona_loader, sample_content):
@@ -278,9 +273,9 @@ class TestConversationManager:
         
         with patch('src.agents.conversation_manager.AnalysisAgent'):
             manager = ConversationManager(persona_loader=mock_persona_loader)
-            manager.context_agent = mock_context_agent
+            manager.context_agents = [mock_context_agent]
             
-            prepared = manager._prepare_content_for_review(sample_content, mock_context_result)
+            prepared = manager._prepare_content_for_review(sample_content, [mock_context_result])
             
             assert "## CONTEXT" in prepared
             assert "Test context" in prepared
@@ -346,6 +341,6 @@ class TestConversationResult:
         assert result.reviews[0] == review
         assert result.timestamp == timestamp
         assert result.summary is None
-        assert result.analysis is None
-        assert result.context_result is None
+        assert result.analysis_results == []
+        assert result.context_results == []
         assert result.original_content is None

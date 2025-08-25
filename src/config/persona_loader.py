@@ -18,6 +18,7 @@ from dataclasses import dataclass
 # Try to load python-dotenv if available
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass  # python-dotenv not installed, skip .env loading
@@ -51,7 +52,9 @@ class PersonaConfig:
 class PersonaLoader:
     """Loads and manages persona configurations."""
 
-    def __init__(self, project_root: Optional[Path] = None, personas_dir: Optional[Path] = None):
+    def __init__(
+        self, project_root: Optional[Path] = None, personas_dir: Optional[Path] = None
+    ):
         """Initialize the persona loader.
 
         Args:
@@ -63,29 +66,29 @@ class PersonaLoader:
             project_root = Path(__file__).parent.parent.parent
 
         self.project_root = Path(project_root)
-        
+
         # Set personas directory with priority: parameter > env var > default (examples)
         if personas_dir:
             self.personas_dir = Path(personas_dir)
-        elif os.getenv('REVIEW_CREW_PERSONAS_DIR'):
-            self.personas_dir = Path(os.getenv('REVIEW_CREW_PERSONAS_DIR'))
+        elif os.getenv("REVIEW_CREW_PERSONAS_DIR"):
+            self.personas_dir = Path(os.getenv("REVIEW_CREW_PERSONAS_DIR"))
         else:
             # Default to examples for testing - production should use .env file
             self.personas_dir = self.project_root / "examples" / "personas"
-    
+
     def get_config_info(self) -> Dict[str, Any]:
         """Get current configuration information.
-        
+
         Returns:
             Dictionary with configuration details
         """
         return {
-            'project_root': str(self.project_root),
-            'personas_dir': str(self.personas_dir),
-            'personas_dir_exists': self.personas_dir.exists(),
-            'env_personas_dir': os.getenv('REVIEW_CREW_PERSONAS_DIR'),
-            'is_using_env_var': bool(os.getenv('REVIEW_CREW_PERSONAS_DIR')),
-            'is_default_examples': not bool(os.getenv('REVIEW_CREW_PERSONAS_DIR')),
+            "project_root": str(self.project_root),
+            "personas_dir": str(self.personas_dir),
+            "personas_dir_exists": self.personas_dir.exists(),
+            "env_personas_dir": os.getenv("REVIEW_CREW_PERSONAS_DIR"),
+            "is_using_env_var": bool(os.getenv("REVIEW_CREW_PERSONAS_DIR")),
+            "is_default_examples": not bool(os.getenv("REVIEW_CREW_PERSONAS_DIR")),
         }
 
     def load_persona(self, filepath: Union[str, Path]) -> PersonaConfig:
@@ -105,7 +108,7 @@ class PersonaLoader:
         # Convert to Path object if it's a string
         if isinstance(filepath, str):
             filepath = Path(filepath)
-            
+
         if not filepath.exists():
             raise FileNotFoundError(f"Persona file not found: {filepath}")
 
@@ -144,13 +147,19 @@ class PersonaLoader:
                 f"Reviewers directory not found: {reviewers_dir}\n"
                 f"Expected folder structure: {self.personas_dir}/reviewers/ and {self.personas_dir}/analyzers/"
             )
-        
+
         personas = self._load_personas_from_dir(reviewers_dir)
-        
+
         if personas:
-            env_info = " (from env var)" if os.getenv('REVIEW_CREW_PERSONAS_DIR') else " (default)"
-            print(f"✅ Loaded {len(personas)} personas from {self.personas_dir}{env_info}")
-        
+            env_info = (
+                " (from env var)"
+                if os.getenv("REVIEW_CREW_PERSONAS_DIR")
+                else " (default)"
+            )
+            print(
+                f"✅ Loaded {len(personas)} reviewer personas from {self.personas_dir}{env_info}"
+            )
+
         if not personas:
             raise ValueError(
                 f"No persona configurations found in {self.personas_dir}\n"
@@ -161,7 +170,7 @@ class PersonaLoader:
 
     def load_analyzer_personas(self) -> List[PersonaConfig]:
         """Load analyzer persona configurations.
-        
+
         Returns:
             List of analyzer PersonaConfig objects
         """
@@ -173,7 +182,7 @@ class PersonaLoader:
 
     def load_contextualizer_personas(self) -> List[PersonaConfig]:
         """Load contextualizer persona configurations.
-        
+
         Returns:
             List of contextualizer PersonaConfig objects
         """
@@ -185,14 +194,14 @@ class PersonaLoader:
 
     def load_all_persona_types(self) -> Dict[str, List[PersonaConfig]]:
         """Load all persona types (reviewers, analyzers, and contextualizers) separately.
-        
+
         Returns:
             Dictionary with 'reviewers', 'analyzers', and 'contextualizers' keys containing their respective personas
         """
         return {
-            'reviewers': self.load_reviewer_personas(),
-            'analyzers': self.load_analyzer_personas(),
-            'contextualizers': self.load_contextualizer_personas()
+            "reviewers": self.load_reviewer_personas(),
+            "analyzers": self.load_analyzer_personas(),
+            "contextualizers": self.load_contextualizer_personas(),
         }
 
     def _load_personas_from_dir(self, directory: Path) -> List[PersonaConfig]:
@@ -288,7 +297,7 @@ if __name__ == "__main__":
         print(f"Loaded {len(reviewers)} reviewer personas:")
         for persona in reviewers:
             print(f"  - {persona.name} ({persona.role})")
-        
+
         # Load analyzers
         analyzers = loader.load_analyzer_personas()
         print(f"\nLoaded {len(analyzers)} analyzer personas:")
