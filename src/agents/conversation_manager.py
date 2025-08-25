@@ -15,6 +15,8 @@ from .analysis_agent import AnalysisAgent, AnalysisResult
 from .context_agent import ContextAgent, ContextResult
 from ..config.persona_loader import PersonaLoader, PersonaConfig
 
+import tiktoken
+
 
 @dataclass
 class ReviewResult:
@@ -38,12 +40,15 @@ class ConversationResult:
     analysis_results: List[AnalysisResult] = None
     context_results: List[ContextResult] = None
     original_content: Optional[str] = None
+    analysis_errors: List[str] = None  # Track analysis failures separately
 
     def __post_init__(self):
         if self.analysis_results is None:
             self.analysis_results = []
         if self.context_results is None:
             self.context_results = []
+        if self.analysis_errors is None:
+            self.analysis_errors = []
 
 
 class ConversationManager:
@@ -76,6 +81,42 @@ class ConversationManager:
 
         if self.enable_analysis:
             self._load_analyzers()
+
+    def _count_tokens(self, text: str) -> int:
+        """Count tokens in text using tiktoken.
+        
+        Args:
+            text: Text to count tokens for
+            
+        Returns:
+            Number of tokens
+        """
+        # Use cl100k_base encoding (used by GPT-4 and similar models)
+        encoding = tiktoken.get_encoding("cl100k_base")
+        return len(encoding.encode(text))
+
+    def _truncate_to_token_limit(self, text: str, target_tokens: int) -> str:
+        """Truncate text to the target number of tokens.
+        
+        Args:
+            text: Text to truncate
+            target_tokens: Target number of tokens
+            
+        Returns:
+            Truncated text
+        """
+        if target_tokens <= 0:
+            return ""
+            
+        encoding = tiktoken.get_encoding("cl100k_base")
+        tokens = encoding.encode(text)
+        
+        if len(tokens) <= target_tokens:
+            return text
+        
+        # Truncate tokens and decode back to text
+        truncated_tokens = tokens[:target_tokens]
+        return encoding.decode(truncated_tokens)
 
     def _load_agents(self) -> None:
         """Load all reviewer personas as review agents."""
@@ -244,15 +285,31 @@ class ConversationManager:
                 print(f"  ✅ {agent.persona.name} completed review")
 
             except Exception as e:
-                error_review = ReviewResult(
-                    agent_name=agent.persona.name,
-                    agent_role=agent.persona.role,
-                    feedback="",
-                    timestamp=datetime.now(),
-                    error=str(e),
-                )
-                reviews.append(error_review)
-                print(f"  ❌ {agent.persona.name} failed: {e}")
+                error_str = str(e)
+                # Check if this is a context length error during review generation
+                if "context length" in error_str.lower() and "4096" in error_str:
+                    print(f"  ❌ {agent.persona.name} failed due to context length limit (input too large for model)")
+                    print(f"      The model ran out of space before completing the review")
+                    print(f"      Try: --max-context-length 8192 or use a larger model")
+                    # Mark as failed with helpful error message
+                    error_review = ReviewResult(
+                        agent_name=agent.persona.name,
+                        agent_role=agent.persona.role,
+                        feedback="",
+                        timestamp=datetime.now(),
+                        error=f"Context length exceeded: {error_str}. The input content + context was too large for the 4096 token model limit. Any partial output shown in console was incomplete.",
+                    )
+                    reviews.append(error_review)
+                else:
+                    error_review = ReviewResult(
+                        agent_name=agent.persona.name,
+                        agent_role=agent.persona.role,
+                        feedback="",
+                        timestamp=datetime.now(),
+                        error=error_str,
+                    )
+                    reviews.append(error_review)
+                    print(f"  ❌ {agent.persona.name} failed: {e}")
 
         result = ConversationResult(
             content=content,
@@ -287,6 +344,7 @@ class ConversationManager:
                 # Get context length from model config or use default
                 max_context_length = self.model_config.get("max_context_length", None)
 
+                analysis_errors = []
                 for analysis_agent in self.analysis_agents:
                     try:
                         print(
@@ -300,14 +358,24 @@ class ConversationManager:
                             f"  ✅ Analysis complete for {analysis_agent.persona.name}"
                         )
                     except Exception as e:
+                        error_msg = f"{analysis_agent.persona.name}: {str(e)}"
+                        analysis_errors.append(error_msg)
                         print(
                             f"  ⚠️  Analysis failed for {analysis_agent.persona.name}: {e}"
                         )
 
                 result.analysis_results = analysis_results
-                print(
-                    f"✅ All analysis complete! Ran {len(analysis_results)} analyzers"
-                )
+                result.analysis_errors = analysis_errors
+                
+                if analysis_results:
+                    print(
+                        f"✅ Analysis complete! Ran {len(analysis_results)} successful analyzers"
+                    )
+                if analysis_errors:
+                    print(
+                        f"⚠️  {len(analysis_errors)} analyzer(s) failed but reviews are still available"
+                    )
+                    print("💡 Check the output for detailed analysis error information")
 
         print(
             f"🎉 Review complete! Collected {len([r for r in reviews if not r.error])} successful reviews"
@@ -452,9 +520,12 @@ class ConversationManager:
 
                 # Process results
                 analysis_results = []
+                analysis_errors = []
                 for i, analysis_result in enumerate(analysis_task_results):
                     analysis_agent = self.analysis_agents[i]
                     if isinstance(analysis_result, Exception):
+                        error_msg = f"{analysis_agent.persona.name}: {str(analysis_result)}"
+                        analysis_errors.append(error_msg)
                         print(
                             f"  ⚠️  Analysis failed for {analysis_agent.persona.name}: {analysis_result}"
                         )
@@ -465,9 +536,17 @@ class ConversationManager:
                         )
 
                 result.analysis_results = analysis_results
-                print(
-                    f"✅ All async analysis complete! Ran {len(analysis_results)} analyzers"
-                )
+                result.analysis_errors = analysis_errors
+                
+                if analysis_results:
+                    print(
+                        f"✅ Async analysis complete! Ran {len(analysis_results)} successful analyzers"
+                    )
+                if analysis_errors:
+                    print(
+                        f"⚠️  {len(analysis_errors)} analyzer(s) failed but reviews are still available"
+                    )
+                    print("💡 Check the output for detailed analysis error information")
 
         print(
             f"🎉 Async review complete! Collected {len([r for r in processed_reviews if not r.error])} successful reviews"
@@ -487,13 +566,28 @@ class ConversationManager:
                 timestamp=datetime.now(),
             )
         except Exception as e:
-            return ReviewResult(
-                agent_name=agent.persona.name,
-                agent_role=agent.persona.role,
-                feedback="",
-                timestamp=datetime.now(),
-                error=str(e),
-            )
+            error_str = str(e)
+            # Check if this is a context length error during review generation
+            if "context length" in error_str.lower() and "4096" in error_str:
+                print(f"  ❌ {agent.persona.name} failed due to context length limit (input too large for model)")
+                print(f"      The model ran out of space before completing the review")
+                print(f"      Try: --max-context-length 8192 or use a larger model")
+                # Mark as failed with helpful error message
+                return ReviewResult(
+                    agent_name=agent.persona.name,
+                    agent_role=agent.persona.role,
+                    feedback="",
+                    timestamp=datetime.now(),
+                    error=f"Context length exceeded: {error_str}. The input content + context was too large for the 4096 token model limit. Any partial output shown in console was incomplete.",
+                )
+            else:
+                return ReviewResult(
+                    agent_name=agent.persona.name,
+                    agent_role=agent.persona.role,
+                    feedback="",
+                    timestamp=datetime.now(),
+                    error=error_str,
+                )
 
     async def _process_context_with_agent_async(
         self, context_agent: ContextAgent, context_data: str
@@ -601,42 +695,47 @@ class ConversationManager:
         Returns:
             Truncated content if necessary, with warning logged
         """
-        # Rough estimation: 1 token ≈ 4 characters (conservative estimate)
-        chars_per_token = 4
-        
         # Get max context length from model config, default to 4096 if not set
         max_context_length = self.model_config.get('max_context_length', 4096)
         
         # Reserve tokens for model response and prompt overhead
         response_buffer = 1000  # tokens for response
-        prompt_overhead = 500   # tokens for system prompt and formatting
+        prompt_overhead = 800   # tokens for system prompt and formatting
         
         # Available tokens for input content
         available_tokens = max_context_length - response_buffer - prompt_overhead
-        available_chars = available_tokens * chars_per_token
+        
+        # Count actual tokens in the combined content
+        current_tokens = self._count_tokens(combined_content)
+        
+        print(f"📏 Token limit check: {current_tokens} tokens vs {available_tokens} available")
         
         # Check if truncation is needed
-        if len(combined_content) <= available_chars:
+        if current_tokens <= available_tokens:
             return combined_content
         
         # Calculate how much context we need to truncate
-        original_content_chars = len(original_content) + 50  # +50 for "## CONTENT TO REVIEW\n" header
-        context_budget = available_chars - original_content_chars
+        original_content_with_header = f"## CONTENT TO REVIEW\n{original_content}"
+        original_tokens = self._count_tokens(original_content_with_header)
+        context_budget_tokens = available_tokens - original_tokens
         
-        if context_budget <= 0:
+        if context_budget_tokens <= 0:
             # Original content itself is too long, warn but proceed
-            print(f"⚠️  Warning: Original content ({len(original_content)} chars) exceeds available context budget")
+            print(f"⚠️  Warning: Original content ({original_tokens} tokens) exceeds available context budget")
             print("   Proceeding without context to avoid model errors")
             return original_content
         
-        # Truncate context content to fit budget
-        if len(context_content) > context_budget:
-            truncated_context = context_content[:context_budget - 100]  # -100 for truncation message
-            truncation_msg = "\n\n[... Context truncated due to length limits ...]"
+        # Truncate context content to fit token budget
+        context_tokens = self._count_tokens(context_content)
+        if context_tokens > context_budget_tokens:
+            # Binary search to find the right truncation point
+            truncated_context = self._truncate_to_token_limit(context_content, context_budget_tokens - 50)  # -50 for truncation message
+            truncation_msg = "\n\n[... Context truncated due to token limits ...]"
             truncated_context += truncation_msg
             
-            print(f"⚠️  Warning: Context truncated from {len(context_content)} to {len(truncated_context)} characters")
-            print(f"   Available context budget: {context_budget} chars, Model limit: {max_context_length} tokens")
+            final_tokens = self._count_tokens(truncated_context)
+            print(f"⚠️  Warning: Context truncated from {context_tokens} to {final_tokens} tokens")
+            print(f"   Available context budget: {context_budget_tokens} tokens, Model limit: {max_context_length} tokens")
             
             return f"""{truncated_context}
 
@@ -698,6 +797,10 @@ class ConversationManager:
             output.append(
                 f"- **Analysis Results:** {len(result.analysis_results)} analyzers 🧠"
             )
+        if hasattr(result, 'analysis_errors') and result.analysis_errors:
+            output.append(
+                f"- **Analysis Errors:** {len(result.analysis_errors)} analyzers failed ⚠️"
+            )
         output.append("")
 
         # Context Results Section
@@ -739,6 +842,7 @@ class ConversationManager:
 
                 # Extract clean text from feedback (handle both string and dict formats)
                 clean_feedback = self._extract_clean_feedback(review.feedback)
+                
                 output.append(clean_feedback)
                 output.append("")
                 output.append("---")
@@ -774,6 +878,18 @@ class ConversationManager:
             output.append("")
             for review in failed_reviews:
                 output.append(f"- **{review.agent_name}:** {review.error}")
+            output.append("")
+
+        # Analysis Errors
+        if hasattr(result, 'analysis_errors') and result.analysis_errors:
+            output.append("## Analysis Errors")
+            output.append("")
+            output.append("The following analyzers failed but reviews were completed successfully:")
+            output.append("")
+            for error in result.analysis_errors:
+                output.append(f"- **{error}**")
+            output.append("")
+            output.append("*Note: Reviews are still available above even though analysis failed.*")
             output.append("")
 
         return "\n".join(output)

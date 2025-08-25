@@ -15,6 +15,8 @@ from datetime import datetime
 from .review_agent import ReviewAgent
 from ..config.persona_loader import PersonaConfig
 
+import tiktoken
+
 
 @dataclass
 class AnalysisResult:
@@ -199,7 +201,7 @@ class AnalysisAgent:
     def _should_chunk(
         self, reviews: List[Dict[str, Any]], max_context_length: int
     ) -> bool:
-        """Determine if chunking is needed based on estimated token count.
+        """Determine if chunking is needed based on actual token count.
 
         Args:
             reviews: List of reviews
@@ -208,21 +210,18 @@ class AnalysisAgent:
         Returns:
             True if chunking is needed
         """
-        # Rough estimation: 1 token ≈ 4 characters (conservative estimate)
-        chars_per_token = 4
-
-        # Estimate token count for reviews only
-        # content_tokens = 0  # No longer using original content
+        # Count actual tokens using tiktoken
         reviews_text = self._format_reviews_for_analysis(reviews)
-        reviews_tokens = len(reviews_text) // chars_per_token
+        encoding = tiktoken.get_encoding("cl100k_base")
+        reviews_tokens = len(encoding.encode(reviews_text))
 
         # Add buffer for prompt template and response
-        prompt_buffer = 500  # tokens for prompt template
+        prompt_buffer = 800  # tokens for prompt template
         response_buffer = 1000  # tokens for response
 
-        total_estimated_tokens = reviews_tokens + prompt_buffer + response_buffer
+        total_tokens = reviews_tokens + prompt_buffer + response_buffer
 
-        return total_estimated_tokens > max_context_length
+        return total_tokens > max_context_length
 
     def _analyze_with_chunking(
         self, reviews: List[Dict[str, Any]], max_context_length: int
@@ -376,8 +375,8 @@ class AnalysisAgent:
         Returns:
             List of review chunks
         """
-        chars_per_token = 4
-        # content_tokens = 0  # No longer using original content
+        # Use tiktoken for accurate token counting
+        encoding = tiktoken.get_encoding("cl100k_base")
         prompt_buffer = 800  # tokens for prompt template and instructions
         response_buffer = 1000  # tokens for response
 
@@ -389,9 +388,9 @@ class AnalysisAgent:
         current_chunk_tokens = 0
 
         for review in reviews:
-            # Estimate tokens for this review
+            # Count actual tokens for this review
             review_text = self._format_single_review_for_analysis(review)
-            review_tokens = len(review_text) // chars_per_token
+            review_tokens = len(encoding.encode(review_text))
 
             # If adding this review would exceed the limit, start a new chunk
             if (
