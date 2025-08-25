@@ -32,54 +32,29 @@ class ContextAgent:
 
     def __init__(
         self,
-        persona_name: str,
+        persona: PersonaConfig,
         model_provider: str = "bedrock",
         model_config: Optional[Dict[str, Any]] = None,
     ):
         """Initialize the context agent.
 
         Args:
-            persona_name: Name of the contextualizer persona to load (without .yaml extension)
+            persona: PersonaConfig object with contextualizer settings
             model_provider: Model provider to use ('bedrock', 'lm_studio', 'ollama')
             model_config: Optional model configuration override
         """
-        self.persona_name = persona_name
+        self.persona = persona
         self.model_provider = model_provider
         self.model_config = model_config or {}
 
-        # Load the contextualizer persona
-        self.persona = self._load_contextualizer_persona(persona_name)
+        # Create the underlying review agent with the provided persona
+        self.agent = ReviewAgent(
+            self.persona,
+            model_provider=model_provider,
+            model_config_override=model_config,
+        )
 
-        # Create the underlying review agent if persona is available
-        if self.persona:
-            self.agent = ReviewAgent(
-                self.persona,
-                model_provider=model_provider,
-                model_config_override=model_config,
-            )
-        else:
-            self.agent = None
 
-    def _load_contextualizer_persona(
-        self, persona_name: str
-    ) -> Optional[PersonaConfig]:
-        """Load a contextualizer persona configuration."""
-        try:
-            loader = PersonaLoader()
-
-            # Check in the contextualizers directory
-            contextualizers_dir = loader.personas_dir / "contextualizers"
-            persona_path = contextualizers_dir / f"{persona_name}.yaml"
-
-            if persona_path.exists():
-                return loader.load_persona(persona_path)
-            else:
-                print(f"⚠️  No contextualizer persona found: {persona_name}")
-                print(f"   Expected location: {persona_path}")
-                return None
-        except Exception as e:
-            print(f"⚠️  Could not load contextualizer persona '{persona_name}': {e}")
-            return None
 
     def process_context(self, context_data: str) -> Optional[ContextResult]:
         """Process and format contextual information using the contextualizer persona.
@@ -90,11 +65,7 @@ class ContextAgent:
         Returns:
             ContextResult with formatted context, or None if no contextualizer available
         """
-        if not self.agent:
-            print(
-                "ℹ️  No contextualizer persona available - no additional context will be provided"
-            )
-            return None
+        # Agent is guaranteed to exist since we pass persona in constructor
 
         # Use the contextualizer agent to process the context
         result = self.agent.review(context_data)
@@ -111,11 +82,7 @@ class ContextAgent:
         Returns:
             ContextResult with formatted context, or None if no contextualizer available
         """
-        if not self.agent:
-            print(
-                "ℹ️  No contextualizer persona available - no additional context will be provided"
-            )
-            return None
+        # Agent is guaranteed to exist since we pass persona in constructor
 
         # Use the contextualizer agent to process the context
         result = await self.agent.review_async(context_data)
@@ -170,14 +137,6 @@ class ContextAgent:
 
     def get_info(self) -> Dict[str, Any]:
         """Get information about this context agent."""
-        if not self.persona:
-            return {
-                "name": "No Context Agent",
-                "role": "No contextualizer persona available",
-                "goal": "No additional context processing",
-                "capabilities": [],
-            }
-
         return {
             "name": self.persona.name,
             "role": self.persona.role,

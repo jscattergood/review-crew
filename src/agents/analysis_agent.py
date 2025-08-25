@@ -43,55 +43,29 @@ class AnalysisAgent:
 
     def __init__(
         self,
-        persona_name: str = "meta_analysis",
+        persona: PersonaConfig,
         model_provider: str = "bedrock",
         model_config: Optional[Dict[str, Any]] = None,
     ):
         """Initialize the analysis agent.
 
         Args:
-            persona_name: Name of the analyzer persona to load (without .yaml extension)
+            persona: PersonaConfig object with analyzer settings
             model_provider: Model provider to use ('bedrock', 'lm_studio', 'ollama')
             model_config: Optional model configuration override
         """
-        self.persona_name = persona_name
+        self.persona = persona
         self.model_provider = model_provider
         self.model_config = model_config or {}
 
-        # Load the specified analyzer persona
-        self.persona = self._load_analyzer_persona(persona_name)
+        # Create the underlying review agent with the provided persona
+        self.agent = ReviewAgent(
+            self.persona,
+            model_provider=model_provider,
+            model_config_override=model_config,
+        )
 
-        # Create the underlying review agent only if persona is loaded
-        if self.persona:
-            self.agent = ReviewAgent(
-                self.persona,
-                model_provider=model_provider,
-                model_config_override=model_config,
-            )
-        else:
-            self.agent = None
 
-    def _load_analyzer_persona(self, persona_name: str) -> Optional[PersonaConfig]:
-        """Load an analyzer persona configuration."""
-        try:
-            from ..config.persona_loader import PersonaLoader
-
-            loader = PersonaLoader()
-
-            # Check in the analyzers directory
-            analyzers_dir = loader.personas_dir / "analyzers"
-            persona_path = analyzers_dir / f"{persona_name}.yaml"
-
-            if persona_path.exists():
-                return loader.load_persona(persona_path)
-            else:
-                print(f"⚠️  No analyzer persona found: {persona_name}")
-                print(f"   Expected location: {persona_path}")
-                return None
-
-        except Exception as e:
-            print(f"⚠️  Could not load analyzer persona '{persona_name}': {e}")
-            return None
 
     def analyze(
         self, reviews: List[Dict[str, Any]], max_context_length: Optional[int] = None
@@ -105,12 +79,7 @@ class AnalysisAgent:
         Returns:
             AnalysisResult with synthesized analysis
         """
-        # Check if persona was loaded
-        if not self.persona or not self.agent:
-            return AnalysisResult(
-                synthesis=f"No analysis performed. Analyzer persona '{self.persona_name}' not found. "
-                f"Please create {self.persona_name}.yaml in config/personas/analyzers/ or examples/personas/analyzers/"
-            )
+        # Persona is guaranteed to exist since we pass it in constructor
 
         # Check if we need to use chunking strategy
         if max_context_length and self._should_chunk(reviews, max_context_length):
@@ -163,12 +132,7 @@ class AnalysisAgent:
         Returns:
             AnalysisResult with synthesized analysis
         """
-        # Check if persona was loaded
-        if not self.persona or not self.agent:
-            return AnalysisResult(
-                synthesis=f"No analysis performed. Analyzer persona '{self.persona_name}' not found. "
-                f"Please create {self.persona_name}.yaml in config/personas/analyzers/ or examples/personas/analyzers/"
-            )
+        # Persona is guaranteed to exist since we pass it in constructor
 
         # Check if we need to use chunking strategy
         if max_context_length and self._should_chunk(reviews, max_context_length):
@@ -383,15 +347,6 @@ class AnalysisAgent:
 
     def get_info(self) -> Dict[str, Any]:
         """Get information about this analysis agent."""
-        if not self.persona:
-            return {
-                "name": f"Analysis Agent ({self.persona_name})",
-                "role": "No persona loaded",
-                "goal": f'Analyzer persona "{self.persona_name}" not found',
-                "capabilities": [],
-                "status": "inactive - no persona file found",
-            }
-
         return {
             "name": self.persona.name,
             "role": self.persona.role,

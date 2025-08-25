@@ -110,16 +110,12 @@ class ConversationManager:
                 self.context_agents = []
                 for persona in contextualizer_personas:
                     context_agent = ContextAgent(
-                        persona_name=persona.name,
+                        persona=persona,
                         model_provider=self.model_provider,
                         model_config=self.model_config,
                     )
-                    # Only add agents that successfully loaded their persona
-                    if context_agent.persona:
-                        self.context_agents.append(context_agent)
-                        print(f"✅ Created context agent: {persona.name}")
-                    else:
-                        print(f"⚠️  Failed to create context agent for: {persona.name}")
+                    self.context_agents.append(context_agent)
+                    print(f"✅ Created context agent: {persona.name}")
             else:
                 print("ℹ️  No contextualizer personas found")
                 self.context_agents = []
@@ -140,16 +136,12 @@ class ConversationManager:
                 self.analysis_agents = []
                 for persona in analyzer_personas:
                     analysis_agent = AnalysisAgent(
-                        persona_name=persona.name,
+                        persona=persona,
                         model_provider=self.model_provider,
                         model_config=self.model_config,
                     )
-                    # Only add agents that successfully loaded their persona
-                    if analysis_agent.persona:
-                        self.analysis_agents.append(analysis_agent)
-                        print(f"✅ Created analysis agent: {persona.name}")
-                    else:
-                        print(f"⚠️  Failed to create analysis agent for: {persona.name}")
+                    self.analysis_agents.append(analysis_agent)
+                    print(f"✅ Created analysis agent: {persona.name}")
             else:
                 print("ℹ️  No analyzer personas found")
                 self.analysis_agents = []
