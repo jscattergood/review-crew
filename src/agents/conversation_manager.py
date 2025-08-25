@@ -459,13 +459,22 @@ class ConversationManager:
                 compiled_content, max_context_length - 500
             )
 
+        # Document validation pipeline
+        validation_results = self._validate_document_collection(directory_path)
+        if validation_results:
+            self._report_validation_results(validation_results)
+
         # Check for manifest file in directory
         manifest_path = directory_path / "manifest.yaml"
         if manifest_path.exists():
-            print(f"📋 Found manifest file, applying reviewer selection")
+            print(f"📋 Found manifest file, processing advanced configuration")
             manifest_config = self._load_manifest(manifest_path)
+            
+            # Process advanced manifest features
+            enhanced_manifest = self._process_advanced_manifest(manifest_config, directory_path)
+            
             return self._run_manifest_review(
-                compiled_content, context_data, manifest_config
+                compiled_content, context_data, enhanced_manifest
             )
 
         # No manifest - run standard review on compiled content
@@ -551,6 +560,421 @@ class ConversationManager:
             print(f"⚠️  Warning: Failed to parse manifest {manifest_path}: {e}")
             return {}
 
+    def _process_advanced_manifest(
+        self, manifest_config: Dict[str, Any], directory_path: Path
+    ) -> Dict[str, Any]:
+        """Process advanced manifest features.
+
+        Args:
+            manifest_config: Parsed manifest configuration
+            directory_path: Path to the document directory
+
+        Returns:
+            Enhanced manifest with processed advanced features
+        """
+        if not manifest_config:
+            return manifest_config
+
+        review_config = manifest_config.get("review_configuration", {})
+
+        # Process context files
+        context_files = self._process_context_files(review_config, directory_path)
+        if context_files:
+            review_config["processed_context"] = context_files
+
+        # Process document relationships
+        relationships = self._process_document_relationships(review_config)
+        if relationships:
+            review_config["processed_relationships"] = relationships
+
+        # Process review focus priorities
+        focus_config = self._process_review_focus(review_config)
+        if focus_config:
+            review_config["processed_focus"] = focus_config
+
+        # Process output configuration
+        output_config = self._process_output_configuration(review_config)
+        if output_config:
+            review_config["processed_output"] = output_config
+
+        return manifest_config
+
+    def _process_context_files(
+        self, review_config: Dict[str, Any], directory_path: Path
+    ) -> List[Dict[str, Any]]:
+        """Process context files from manifest.
+
+        Args:
+            review_config: Review configuration section
+            directory_path: Base directory path
+
+        Returns:
+            List of processed context file configurations
+        """
+        context_files = []
+        documents = review_config.get("documents", {})
+        context_file_configs = documents.get("context_files", [])
+
+        for context_config in context_file_configs:
+            context_path = directory_path / context_config["path"]
+            if context_path.exists():
+                try:
+                    with open(context_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    
+                    processed_context = {
+                        "path": context_config["path"],
+                        "type": context_config.get("type", "general"),
+                        "weight": context_config.get("weight", "medium"),
+                        "content": content,
+                        "loaded": True
+                    }
+                    context_files.append(processed_context)
+                    print(f"  ✓ Loaded context file: {context_config['path']}")
+                except Exception as e:
+                    print(f"  ⚠️  Failed to load context file {context_config['path']}: {e}")
+                    context_files.append({
+                        "path": context_config["path"],
+                        "type": context_config.get("type", "general"),
+                        "weight": context_config.get("weight", "medium"),
+                        "loaded": False,
+                        "error": str(e)
+                    })
+            else:
+                print(f"  ⚠️  Context file not found: {context_config['path']}")
+
+        return context_files
+
+    def _process_document_relationships(
+        self, review_config: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Process document relationships from manifest.
+
+        Args:
+            review_config: Review configuration section
+
+        Returns:
+            List of processed document relationships
+        """
+        documents = review_config.get("documents", {})
+        relationships = documents.get("relationships", [])
+        
+        processed_relationships = []
+        for rel in relationships:
+            processed_rel = {
+                "source": rel.get("source"),
+                "target": rel.get("target"),
+                "type": rel.get("type", "relates_to"),
+                "note": rel.get("note", ""),
+                "weight": rel.get("weight", "medium")
+            }
+            processed_relationships.append(processed_rel)
+        
+        if processed_relationships:
+            print(f"  📊 Processed {len(processed_relationships)} document relationships")
+        
+        return processed_relationships
+
+    def _process_review_focus(self, review_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Process review focus configuration from manifest.
+
+        Args:
+            review_config: Review configuration section
+
+        Returns:
+            Processed review focus configuration
+        """
+        review_focus = review_config.get("review_focus", {})
+        
+        if not review_focus:
+            return {}
+        
+        processed_focus = {
+            "primary_concerns": review_focus.get("primary_concerns", []),
+            "secondary_concerns": review_focus.get("secondary_concerns", []),
+            "focus_instructions": []
+        }
+        
+        # Generate focus instructions for reviewers
+        all_concerns = (
+            processed_focus["primary_concerns"] + processed_focus["secondary_concerns"]
+        )
+        
+        for concern in all_concerns:
+            weight = concern.get("weight", "medium")
+            concern_text = concern.get("concern", "")
+            description = concern.get("description", "")
+            
+            if weight == "critical":
+                instruction = f"🔴 CRITICAL: Pay special attention to {concern_text}"
+            elif weight == "high":
+                instruction = f"🟡 HIGH PRIORITY: Focus on {concern_text}"
+            else:
+                instruction = f"🔵 CONSIDER: {concern_text}"
+            
+            if description:
+                instruction += f" - {description}"
+            
+            processed_focus["focus_instructions"].append(instruction)
+        
+        if processed_focus["focus_instructions"]:
+            print(f"  🎯 Configured {len(processed_focus['focus_instructions'])} review focus points")
+        
+        return processed_focus
+
+    def _process_output_configuration(
+        self, review_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Process output configuration from manifest.
+
+        Args:
+            review_config: Review configuration section
+
+        Returns:
+            Processed output configuration
+        """
+        output_config = review_config.get("output", {})
+        
+        if not output_config:
+            return {}
+        
+        processed_output = {
+            "format": output_config.get("format", "standard"),
+            "include_sections": output_config.get("include_sections", []),
+            "exclude_sections": output_config.get("exclude_sections", []),
+            "summary_length": output_config.get("summary_length", "standard"),
+            "include_scores": output_config.get("include_scores", False),
+            "highlight_critical_issues": output_config.get("highlight_critical_issues", False)
+        }
+        
+        print(f"  📋 Output format: {processed_output['format']}")
+        if processed_output["include_sections"]:
+            print(f"     Including sections: {', '.join(processed_output['include_sections'])}")
+        
+        return processed_output
+
+    def _build_enhanced_context(
+        self, context_data: Optional[str], review_config: Dict[str, Any]
+    ) -> Optional[str]:
+        """Build enhanced context incorporating manifest context files.
+
+        Args:
+            context_data: Original context data
+            review_config: Review configuration section
+
+        Returns:
+            Enhanced context string or None
+        """
+        context_parts = []
+        
+        # Add original context if provided
+        if context_data:
+            context_parts.append("## Original Context")
+            context_parts.append(context_data)
+            context_parts.append("")
+
+        # Add processed context files from manifest
+        processed_context = review_config.get("processed_context", [])
+        for context_file in processed_context:
+            if context_file.get("loaded"):
+                context_type = context_file.get("type", "general")
+                weight = context_file.get("weight", "medium")
+                
+                weight_indicator = {"high": "🔴", "medium": "🟡", "low": "🔵"}.get(weight, "🔵")
+                
+                context_parts.append(f"## Context: {context_file['path']} {weight_indicator}")
+                context_parts.append(f"Type: {context_type.title()}")
+                context_parts.append("")
+                context_parts.append(context_file["content"])
+                context_parts.append("")
+
+        # Add document relationships as context
+        relationships = review_config.get("processed_relationships", [])
+        if relationships:
+            context_parts.append("## Document Relationships")
+            for rel in relationships:
+                rel_text = f"- {rel['source']} {rel['type']} {rel['target']}"
+                if rel.get("note"):
+                    rel_text += f": {rel['note']}"
+                context_parts.append(rel_text)
+            context_parts.append("")
+
+        # Add focus instructions as context
+        focus_config = review_config.get("processed_focus", {})
+        focus_instructions = focus_config.get("focus_instructions", [])
+        if focus_instructions:
+            context_parts.append("## Review Focus Instructions")
+            for instruction in focus_instructions:
+                context_parts.append(f"- {instruction}")
+            context_parts.append("")
+
+        return "\n".join(context_parts) if context_parts else context_data
+
+    def _apply_focus_to_reviewers(
+        self, reviewers: List, review_config: Dict[str, Any]
+    ) -> List:
+        """Apply focus instructions to reviewer personas.
+
+        Args:
+            reviewers: List of reviewer PersonaConfig objects
+            review_config: Review configuration section
+
+        Returns:
+            List of reviewer personas with enhanced prompts
+        """
+        focus_config = review_config.get("processed_focus", {})
+        focus_instructions = focus_config.get("focus_instructions", [])
+        
+        if not focus_instructions:
+            return reviewers
+
+        enhanced_reviewers = []
+        for reviewer in reviewers:
+            # Create a copy of the reviewer with enhanced prompt
+            enhanced_reviewer = type(reviewer)(
+                name=reviewer.name,
+                role=reviewer.role,
+                goal=reviewer.goal,
+                backstory=reviewer.backstory,
+                prompt_template=reviewer.prompt_template,
+                model_config=reviewer.model_config
+            )
+            
+            # Enhance the prompt template with focus instructions
+            focus_section = "\n\n## SPECIAL FOCUS AREAS FOR THIS REVIEW\n"
+            focus_section += "\n".join(focus_instructions)
+            focus_section += "\n\nPlease pay particular attention to these focus areas in your review.\n"
+            
+            enhanced_reviewer.prompt_template = enhanced_reviewer.prompt_template + focus_section
+            enhanced_reviewers.append(enhanced_reviewer)
+
+        return enhanced_reviewers
+
+    def _apply_output_configuration(
+        self, result: 'ConversationResult', review_config: Dict[str, Any]
+    ) -> 'ConversationResult':
+        """Apply output configuration to modify result formatting.
+
+        Args:
+            result: Original conversation result
+            review_config: Review configuration section
+
+        Returns:
+            Modified conversation result with applied output configuration
+        """
+        output_config = review_config.get("processed_output", {})
+        
+        if not output_config:
+            return result
+
+        # For now, just add metadata about the output configuration
+        # In a full implementation, this would modify the actual formatting
+        if hasattr(result, 'metadata'):
+            if not result.metadata:
+                result.metadata = {}
+            result.metadata['output_config'] = output_config
+        else:
+            # Add metadata attribute if it doesn't exist
+            result.metadata = {'output_config': output_config}
+
+        return result
+
+    def _validate_document_collection(self, directory_path: Path) -> Optional[Dict[str, Any]]:
+        """Validate document collection using the validation pipeline.
+        
+        Args:
+            directory_path: Path to directory containing documents
+            
+        Returns:
+            Validation results dictionary or None if validation disabled
+        """
+        try:
+            from ..validation.document_validator import DocumentValidator
+            
+            # Load validation configuration from manifest if available
+            manifest_path = directory_path / "manifest.yaml"
+            validation_config = {}
+            
+            if manifest_path.exists():
+                manifest = self._load_manifest(manifest_path)
+                processing_config = manifest.get("review_configuration", {}).get("processing", {})
+                
+                # Extract validation-relevant settings
+                if "max_content_length" in processing_config:
+                    # Convert to word count (rough estimate: 5 chars per word)
+                    validation_config["max_word_count"] = processing_config["max_content_length"] // 5
+            
+            validator = DocumentValidator(validation_config)
+            
+            # Get manifest config for expected documents
+            manifest_config = None
+            if manifest_path.exists():
+                manifest_config = self._load_manifest(manifest_path)
+            
+            validation_results = validator.validate_document_collection(directory_path, manifest_config)
+            return validation_results
+            
+        except ImportError:
+            print("⚠️  Document validation not available - skipping validation step")
+            return None
+        except Exception as e:
+            print(f"⚠️  Document validation failed: {e}")
+            return None
+
+    def _report_validation_results(self, validation_results: Dict[str, Any]) -> None:
+        """Report validation results to user.
+        
+        Args:
+            validation_results: Results from document validation
+        """
+        if not validation_results:
+            return
+        
+        # Count issues by severity
+        total_errors = 0
+        total_warnings = 0
+        total_info = 0
+        
+        for filename, (results, metadata) in validation_results.items():
+            if filename.startswith("_"):
+                continue
+            
+            for result in results:
+                if result.level.value == "error":
+                    total_errors += 1
+                elif result.level.value == "warning":
+                    total_warnings += 1
+                elif result.level.value == "info":
+                    total_info += 1
+        
+        # Report summary
+        if total_errors > 0:
+            print(f"❌ Document validation found {total_errors} errors")
+        if total_warnings > 0:
+            print(f"⚠️  Document validation found {total_warnings} warnings")
+        if total_info > 0:
+            print(f"ℹ️  Document validation found {total_info} information items")
+        
+        if total_errors == 0 and total_warnings == 0 and total_info == 0:
+            print("✅ All documents passed validation")
+        
+        # Report specific issues for errors and warnings
+        for filename, (results, metadata) in validation_results.items():
+            if filename.startswith("_"):
+                continue
+            
+            errors = [r for r in results if r.level.value == "error"]
+            warnings = [r for r in results if r.level.value == "warning"]
+            
+            if errors or warnings:
+                print(f"📄 {filename}:")
+                for error in errors:
+                    print(f"  ❌ {error.message}")
+                for warning in warnings:
+                    print(f"  ⚠️  {warning.message}")
+        
+        print()  # Add spacing after validation report
+
     def _run_manifest_review(
         self,
         content: str,
@@ -573,6 +997,9 @@ class ConversationManager:
 
         review_config = manifest_config.get("review_configuration", {})
 
+        # Process enhanced context from manifest
+        enhanced_context = self._build_enhanced_context(context_data, review_config)
+
         # Load reviewers based on manifest
         selected_reviewers = []
         if review_config:
@@ -584,6 +1011,10 @@ class ConversationManager:
             except Exception as e:
                 print(f"⚠️  Error loading reviewers from manifest: {e}")
                 print("📋 Falling back to all available reviewers")
+
+        # Apply review focus instructions to reviewer personas
+        if review_config.get("processed_focus"):
+            selected_reviewers = self._apply_focus_to_reviewers(selected_reviewers, review_config)
 
         # Create temporary agents for this review
         if selected_reviewers:
@@ -599,15 +1030,26 @@ class ConversationManager:
             self.agents = temp_agents
 
             try:
-                # Run review with selected agents
-                result = self._run_single_document_review(content, context_data, None)
+                # Run review with selected agents and enhanced context
+                result = self._run_single_document_review(content, enhanced_context, None)
+                
+                # Apply output configuration if specified
+                if review_config.get("processed_output"):
+                    result = self._apply_output_configuration(result, review_config)
+                
                 return result
             finally:
                 # Restore original agents
                 self.agents = original_agents
         else:
-            # No specific reviewers found, use standard review
-            return self._run_single_document_review(content, context_data, None)
+            # No specific reviewers found, use standard review with enhanced context
+            result = self._run_single_document_review(content, enhanced_context, None)
+            
+            # Apply output configuration if specified
+            if review_config.get("processed_output"):
+                result = self._apply_output_configuration(result, review_config)
+            
+            return result
 
     async def run_review_async(
         self,

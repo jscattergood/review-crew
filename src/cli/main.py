@@ -7,6 +7,7 @@ This module provides the command-line interface for running multi-agent reviews.
 import click
 import asyncio
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -60,6 +61,16 @@ def cli():
     is_flag=True,
     help="Include context results from contextualizers in the output",
 )
+@click.option(
+    "--export-format",
+    type=click.Choice(["json", "html", "summary"]),
+    help="Export results in structured format (json, html, summary)",
+)
+@click.option(
+    "--export-path",
+    type=click.Path(),
+    help="Path to save exported results (auto-generated if not provided)",
+)
 def review(
     content: Optional[str],
     agents: tuple,
@@ -73,6 +84,8 @@ def review(
     context: Optional[str],
     max_context_length: Optional[int],
     include_context: bool,
+    export_format: Optional[str],
+    export_path: Optional[str],
 ):
     """Review content with multiple AI agents.
 
@@ -227,6 +240,39 @@ def review(
                 click.echo(f"💾 Results saved to: {output}")
             except Exception as e:
                 click.echo(f"❌ Error saving to {output}: {e}", err=True)
+
+        # Export in structured format if requested
+        if export_format:
+            try:
+                from ..export.formatters import ExportManager
+                
+                # Generate export path if not provided
+                if not export_path:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    export_path = f"review_export_{timestamp}.{export_format}"
+                
+                export_manager = ExportManager()
+                
+                # Create export metadata
+                export_metadata = {
+                    'review_type': 'multi-document' if Path(content_text).is_dir() else 'single-document',
+                    'document_count': len(list(Path(content_text).iterdir())) if Path(content_text).exists() and Path(content_text).is_dir() else 1
+                }
+                
+                success = export_manager.export_result(
+                    result, 
+                    Path(export_path), 
+                    export_format,
+                    export_metadata
+                )
+                
+                if not success:
+                    click.echo(f"❌ Export failed", err=True)
+                    
+            except ImportError:
+                click.echo("⚠️  Export functionality not available", err=True)
+            except Exception as e:
+                click.echo(f"❌ Export error: {e}", err=True)
 
     except Exception as e:
         click.echo(f"❌ Error during review: {e}", err=True)
