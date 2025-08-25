@@ -94,7 +94,9 @@ class AnalysisAgent:
 
         # Create the analysis prompt by manually formatting it
         # (since ReviewAgent.review() only expects {content} placeholder)
-        analysis_prompt = self.persona.prompt_template.format(reviews=formatted_reviews)
+        analysis_prompt = self.persona.prompt_template.format(
+            reviews=formatted_reviews, content=""
+        )
 
         # Get the analysis by calling the underlying agent directly
         # We bypass the ReviewAgent.review() method since it expects a different prompt format
@@ -145,7 +147,9 @@ class AnalysisAgent:
 
         # Create the analysis prompt by manually formatting it
         # (since ReviewAgent.review_async() only expects {content} placeholder)
-        analysis_prompt = self.persona.prompt_template.format(reviews=formatted_reviews)
+        analysis_prompt = self.persona.prompt_template.format(
+            reviews=formatted_reviews, content=""
+        )
 
         # Get the meta-analysis by calling the underlying agent directly
         # We bypass the ReviewAgent.review_async() method since it expects a different prompt format
