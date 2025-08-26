@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime
+from pathlib import Path
 
 from src.agents.conversation_manager import ConversationManager, ConversationResult, ReviewResult
 from src.agents.context_agent import ContextResult
@@ -564,6 +565,261 @@ class TestReviewResult:
         
         assert result.error == "Test error"
         assert result.feedback == ""
+
+
+class TestManifestDocumentLoading:
+    """Test manifest-driven document loading functionality."""
+    
+    def test_collect_documents_from_manifest_primary_and_supporting(self, mock_persona_loader, tmp_path):
+        """Test loading primary and supporting documents from manifest."""
+        # Create test files
+        primary_file = tmp_path / "primary.md"
+        primary_file.write_text("# Primary Document\nThis is the main content.")
+        
+        supporting1_file = tmp_path / "supporting1.md"
+        supporting1_file.write_text("# Supporting Document 1\nSupporting content 1.")
+        
+        supporting2_file = tmp_path / "supporting2.md" 
+        supporting2_file.write_text("# Supporting Document 2\nSupporting content 2.")
+        
+        # Create manifest config
+        manifest_config = {
+            "review_configuration": {
+                "documents": {
+                    "primary": "primary.md",
+                    "supporting": ["supporting1.md", "supporting2.md"]
+                }
+            }
+        }
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            documents = manager._collect_documents_from_manifest(manifest_config, tmp_path)
+            
+            assert len(documents) == 3
+            
+            # Check primary document
+            primary_docs = [d for d in documents if d["type"] == "primary"]
+            assert len(primary_docs) == 1
+            assert primary_docs[0]["name"] == "primary.md"
+            assert primary_docs[0]["content"] == "# Primary Document\nThis is the main content."
+            assert primary_docs[0]["manifest_path"] == "primary.md"
+            
+            # Check supporting documents
+            supporting_docs = [d for d in documents if d["type"] == "supporting"]
+            assert len(supporting_docs) == 2
+            supporting_names = [d["name"] for d in supporting_docs]
+            assert "supporting1.md" in supporting_names
+            assert "supporting2.md" in supporting_names
+    
+    def test_collect_documents_from_manifest_relative_paths(self, mock_persona_loader, tmp_path):
+        """Test loading documents with relative paths including ../paths."""
+        # Create nested directory structure
+        base_dir = tmp_path / "project"
+        base_dir.mkdir()
+        parent_dir = tmp_path
+        
+        # Create files in different locations
+        primary_file = parent_dir / "common.md"
+        primary_file.write_text("# Common Document\nShared content.")
+        
+        supporting_file = base_dir / "specific.md"
+        supporting_file.write_text("# Specific Document\nProject-specific content.")
+        
+        # Create manifest config with relative paths
+        manifest_config = {
+            "review_configuration": {
+                "documents": {
+                    "primary": "../common.md",  # Go up one level
+                    "supporting": ["specific.md"]  # Relative to base_dir
+                }
+            }
+        }
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            documents = manager._collect_documents_from_manifest(manifest_config, base_dir)
+            
+            assert len(documents) == 2
+            
+            # Check primary document (from parent directory)
+            primary_docs = [d for d in documents if d["type"] == "primary"]
+            assert len(primary_docs) == 1
+            assert primary_docs[0]["name"] == "common.md"
+            assert primary_docs[0]["content"] == "# Common Document\nShared content."
+            assert primary_docs[0]["manifest_path"] == "../common.md"
+            
+            # Check supporting document (from base directory)
+            supporting_docs = [d for d in documents if d["type"] == "supporting"]
+            assert len(supporting_docs) == 1
+            assert supporting_docs[0]["name"] == "specific.md"
+            assert supporting_docs[0]["content"] == "# Specific Document\nProject-specific content."
+    
+    def test_collect_documents_from_manifest_missing_files(self, mock_persona_loader, tmp_path):
+        """Test handling of missing files in manifest."""
+        # Create only one of the files
+        existing_file = tmp_path / "existing.md"
+        existing_file.write_text("# Existing Document\nThis file exists.")
+        
+        # Create manifest config with missing files
+        manifest_config = {
+            "review_configuration": {
+                "documents": {
+                    "primary": "missing_primary.md",  # This file doesn't exist
+                    "supporting": ["existing.md", "missing_supporting.md"]  # One exists, one doesn't
+                }
+            }
+        }
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            documents = manager._collect_documents_from_manifest(manifest_config, tmp_path)
+            
+            # Should only load the existing file
+            assert len(documents) == 1
+            assert documents[0]["name"] == "existing.md"
+            assert documents[0]["type"] == "supporting"
+            assert documents[0]["content"] == "# Existing Document\nThis file exists."
+    
+    def test_collect_documents_from_manifest_no_documents_section(self, mock_persona_loader, tmp_path):
+        """Test handling of manifest with no documents section."""
+        manifest_config = {
+            "review_configuration": {
+                "name": "Test Review",
+                "reviewers": ["Test Reviewer"]
+                # No documents section
+            }
+        }
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            documents = manager._collect_documents_from_manifest(manifest_config, tmp_path)
+            
+            assert len(documents) == 0
+    
+    def test_collect_documents_from_manifest_empty_documents_section(self, mock_persona_loader, tmp_path):
+        """Test handling of manifest with empty documents section."""
+        manifest_config = {
+            "review_configuration": {
+                "documents": {}  # Empty documents section
+            }
+        }
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            documents = manager._collect_documents_from_manifest(manifest_config, tmp_path)
+            
+            assert len(documents) == 0
+    
+    def test_collect_documents_from_manifest_only_primary(self, mock_persona_loader, tmp_path):
+        """Test loading only primary document when no supporting documents specified."""
+        # Create test file
+        primary_file = tmp_path / "primary_only.md"
+        primary_file.write_text("# Primary Only\nThis is the only document.")
+        
+        # Create manifest config with only primary
+        manifest_config = {
+            "review_configuration": {
+                "documents": {
+                    "primary": "primary_only.md"
+                    # No supporting documents
+                }
+            }
+        }
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            documents = manager._collect_documents_from_manifest(manifest_config, tmp_path)
+            
+            assert len(documents) == 1
+            assert documents[0]["type"] == "primary"
+            assert documents[0]["name"] == "primary_only.md"
+            assert documents[0]["content"] == "# Primary Only\nThis is the only document."
+    
+    def test_collect_documents_from_manifest_only_supporting(self, mock_persona_loader, tmp_path):
+        """Test loading only supporting documents when no primary specified."""
+        # Create test files
+        supporting1_file = tmp_path / "support1.md"
+        supporting1_file.write_text("# Support 1\nSupporting content 1.")
+        
+        supporting2_file = tmp_path / "support2.md"
+        supporting2_file.write_text("# Support 2\nSupporting content 2.")
+        
+        # Create manifest config with only supporting
+        manifest_config = {
+            "review_configuration": {
+                "documents": {
+                    "supporting": ["support1.md", "support2.md"]
+                    # No primary document
+                }
+            }
+        }
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            documents = manager._collect_documents_from_manifest(manifest_config, tmp_path)
+            
+            assert len(documents) == 2
+            assert all(d["type"] == "supporting" for d in documents)
+            supporting_names = [d["name"] for d in documents]
+            assert "support1.md" in supporting_names
+            assert "support2.md" in supporting_names
+    
+    def test_collect_documents_from_manifest_file_read_error(self, mock_persona_loader, tmp_path):
+        """Test handling of file read errors."""
+        # Create a file that exists but will cause read error
+        problematic_file = tmp_path / "problematic.md"
+        problematic_file.write_text("# Test\nContent.")
+        
+        # Create manifest config
+        manifest_config = {
+            "review_configuration": {
+                "documents": {
+                    "primary": "problematic.md"
+                }
+            }
+        }
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            
+            # Mock open to raise an exception
+            with patch('builtins.open', side_effect=IOError("Permission denied")):
+                documents = manager._collect_documents_from_manifest(manifest_config, tmp_path)
+                
+                # Should handle error gracefully and return empty list
+                assert len(documents) == 0
+    
+    def test_resolve_document_path_relative(self, mock_persona_loader):
+        """Test path resolution for various relative path formats."""
+        base_dir = Path("/base/project")
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            
+            # Test relative path starting with ../
+            resolved = manager._resolve_document_path("../common.md", base_dir)
+            assert resolved == Path("/base/common.md")
+            
+            # Test simple relative path
+            resolved = manager._resolve_document_path("local.md", base_dir)
+            assert resolved == base_dir / "local.md"
+            
+            # Test absolute path
+            resolved = manager._resolve_document_path("/absolute/path.md", base_dir)
+            assert resolved == Path("/absolute/path.md")
+    
+    def test_resolve_document_path_error_handling(self, mock_persona_loader):
+        """Test path resolution error handling."""
+        base_dir = Path("/base/project")
+        
+        with patch('src.agents.conversation_manager.AnalysisAgent'):
+            manager = ConversationManager(persona_loader=mock_persona_loader)
+            
+            # Test with invalid path that causes exception
+            with patch('pathlib.Path.__truediv__', side_effect=OSError("Invalid path")):
+                resolved = manager._resolve_document_path("invalid.md", base_dir)
+                assert resolved is None
 
 
 class TestConversationResult:

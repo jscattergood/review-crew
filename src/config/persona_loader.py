@@ -459,6 +459,87 @@ class PersonaLoader:
 
         return unique_personas
 
+    def load_analyzer_personas_by_names(self, names: List[str]) -> List[PersonaConfig]:
+        """Load analyzer personas by specific names.
+
+        Args:
+            names: List of analyzer persona names to load
+
+        Returns:
+            List of PersonaConfig objects for analyzers
+        """
+        all_analyzer_personas = self.load_analyzer_personas()
+        selected_personas = []
+
+        for name in names:
+            for persona in all_analyzer_personas:
+                if persona.name == name:
+                    selected_personas.append(persona)
+                    break
+            else:
+                print(f"⚠️  Analyzer persona '{name}' not found")
+
+        return selected_personas
+
+    def load_analyzer_personas_by_category(
+        self, categories: List[str]
+    ) -> List[PersonaConfig]:
+        """Load analyzer personas by categories.
+
+        Args:
+            categories: List of category names to load
+
+        Returns:
+            List of PersonaConfig objects for analyzers in specified categories
+        """
+        personas = []
+
+        for category in categories:
+            category_dir = self.personas_dir / "analyzers" / category
+            if category_dir.exists():
+                personas.extend(self._load_personas_from_directory(category_dir))
+            else:
+                print(f"⚠️  Analyzer category '{category}' not found at {category_dir}")
+
+        return personas
+
+    def load_analyzers_from_manifest(
+        self, manifest_config: Dict[str, Any]
+    ) -> List[PersonaConfig]:
+        """Load analyzers based on manifest configuration.
+
+        Args:
+            manifest_config: Manifest configuration dictionary
+
+        Returns:
+            List of PersonaConfig objects based on manifest specification
+        """
+        personas = []
+
+        # Load by categories
+        if "analyzer_categories" in manifest_config:
+            category_personas = self.load_analyzer_personas_by_category(
+                manifest_config["analyzer_categories"]
+            )
+            personas.extend(category_personas)
+
+        # Load by specific names
+        if "analyzers" in manifest_config:
+            name_personas = self.load_analyzer_personas_by_names(
+                manifest_config["analyzers"]
+            )
+            personas.extend(name_personas)
+
+        # Remove duplicates (in case same persona specified in both ways)
+        unique_personas = []
+        seen_names = set()
+        for persona in personas:
+            if persona.name not in seen_names:
+                unique_personas.append(persona)
+                seen_names.add(persona.name)
+
+        return unique_personas
+
     def setup_custom_config(self) -> None:
         """Set up the custom config directory by copying examples.
 

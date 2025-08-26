@@ -67,12 +67,6 @@ make personas
 # Run example
 make run-example
 
-# Test with realistic samples (no LLM calls)
-make test-python   # Test with Python code sample
-make test-html     # Test with HTML page sample
-make test-docs     # Test with API documentation sample
-make test-review   # Interactive test with all options
-
 # Test LM Studio integration (if you have LM Studio running)
 make test-lm-studio
 ```
