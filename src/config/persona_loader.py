@@ -369,6 +369,96 @@ class PersonaLoader:
 
         return unique_personas
 
+    def load_contextualizer_personas_by_names(
+        self, names: List[str]
+    ) -> List[PersonaConfig]:
+        """Load specific contextualizer personas by name.
+
+        Args:
+            names: List of exact persona names to load
+
+        Returns:
+            List of PersonaConfig objects matching the specified names
+        """
+        all_contextualizers = self.load_contextualizer_personas()
+        selected_contextualizers = []
+
+        for name in names:
+            found = False
+            for persona in all_contextualizers:
+                if persona.name == name:
+                    selected_contextualizers.append(persona)
+                    found = True
+                    break
+            if not found:
+                print(f"⚠️  Contextualizer '{name}' not found")
+
+        return selected_contextualizers
+
+    def load_contextualizer_personas_by_category(
+        self, categories: List[str]
+    ) -> List[PersonaConfig]:
+        """Load contextualizer personas from specific categories (sub-folders).
+
+        Args:
+            categories: List of category folder names (e.g., ['business', 'academic'])
+
+        Returns:
+            List of PersonaConfig objects from specified categories
+        """
+        contextualizers_dir = self.personas_dir / "contextualizers"
+        personas = []
+
+        for category in categories:
+            category_dir = contextualizers_dir / category
+            if category_dir.exists():
+                category_personas = self._load_personas_from_single_dir(category_dir)
+                personas.extend(category_personas)
+                print(
+                    f"✅ Loaded {len(category_personas)} contextualizers from '{category}' category"
+                )
+            else:
+                print(f"⚠️  Category '{category}' not found in {contextualizers_dir}")
+
+        return personas
+
+    def load_contextualizers_from_manifest(
+        self, manifest_config: Dict[str, Any]
+    ) -> List[PersonaConfig]:
+        """Load contextualizers based on manifest configuration.
+
+        Args:
+            manifest_config: Manifest configuration dictionary
+
+        Returns:
+            List of PersonaConfig objects based on manifest specification
+        """
+        personas = []
+
+        # Load by categories
+        if "contextualizer_categories" in manifest_config:
+            category_personas = self.load_contextualizer_personas_by_category(
+                manifest_config["contextualizer_categories"]
+            )
+            personas.extend(category_personas)
+
+        # Load by specific names
+        if "contextualizers" in manifest_config:
+            name_personas = self.load_contextualizer_personas_by_names(
+                manifest_config["contextualizers"]
+            )
+            personas.extend(name_personas)
+
+        # Remove duplicates (in case same persona specified in both ways)
+        unique_personas = []
+        seen_names = set()
+        for persona in personas:
+            if persona.name not in seen_names:
+                unique_personas.append(persona)
+                seen_names.add(persona.name)
+
+        return unique_personas
+
     def setup_custom_config(self) -> None:
         """Set up the custom config directory by copying examples.
 

@@ -171,6 +171,36 @@ class ConversationManager:
             print(f"❌ Error loading contextualizers: {e}")
             self.context_agents = []
 
+    def _load_specific_contextualizers(self, contextualizer_personas: List) -> None:
+        """Load specific contextualizer personas as context agents.
+        
+        Args:
+            contextualizer_personas: List of PersonaConfig objects for contextualizers
+        """
+        try:
+            if contextualizer_personas:
+                print(
+                    f"✅ Loading {len(contextualizer_personas)} selected contextualizer personas"
+                )
+
+                # Create context agents for selected contextualizer personas
+                self.context_agents = []
+                for persona in contextualizer_personas:
+                    context_agent = ContextAgent(
+                        persona=persona,
+                        model_provider=self.model_provider,
+                        model_config=self.model_config,
+                    )
+                    self.context_agents.append(context_agent)
+                    print(f"✅ Created context agent: {persona.name}")
+            else:
+                print("ℹ️  No contextualizer personas specified")
+                self.context_agents = []
+
+        except Exception as e:
+            print(f"❌ Error loading specific contextualizers: {e}")
+            self.context_agents = []
+
     def _load_analyzers(self) -> None:
         """Load all analyzer personas as analysis agents."""
         try:
@@ -1046,6 +1076,24 @@ class ConversationManager:
                 selected_reviewers, review_config
             )
 
+        # Load contextualizers based on manifest
+        selected_contextualizers = []
+        original_context_agents = self.context_agents  # Store original context agents
+        if review_config:
+            try:
+                selected_contextualizers = self.persona_loader.load_contextualizers_from_manifest(
+                    review_config
+                )
+                if selected_contextualizers:
+                    print(f"🎯 Manifest specified {len(selected_contextualizers)} contextualizers")
+                    # Replace context agents temporarily
+                    self._load_specific_contextualizers(selected_contextualizers)
+                else:
+                    print("📋 No contextualizers specified in manifest, using all available")
+            except Exception as e:
+                print(f"⚠️  Error loading contextualizers from manifest: {e}")
+                print("📋 Falling back to all available contextualizers")
+
         # Create temporary agents for this review
         if selected_reviewers:
             from .review_agent import ReviewAgent
@@ -1073,6 +1121,9 @@ class ConversationManager:
             finally:
                 # Restore original agents
                 self.agents = original_agents
+                
+                # Restore original context agents
+                self.context_agents = original_context_agents
         else:
             # No specific reviewers found, use standard review with enhanced context
             result = self._run_single_document_review(content, enhanced_context, None)
