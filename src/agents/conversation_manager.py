@@ -1092,13 +1092,22 @@ class ConversationManager:
         """Run an asynchronous review with selected agents.
 
         Args:
-            content: Content to review
+            content: Content to review or directory path for multi-document review
             context_data: Optional context information to be processed by contextualizer
             selected_agents: Optional list of agent names to use (uses all if None)
 
         Returns:
             ConversationResult with all reviews
         """
+        # Check if content is a directory path for multi-document review
+        content_path = Path(content)
+        if content_path.exists() and content_path.is_dir():
+            # For async multi-document review, we'll use the sync method for now
+            # since the multi-document logic is complex and doesn't need to be async
+            return self._run_multi_document_review(
+                content_path, context_data, selected_agents
+            )
+
         if not self.agents:
             raise ValueError(
                 "No review agents available. Check your persona configurations."
