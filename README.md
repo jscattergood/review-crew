@@ -7,6 +7,7 @@ Review-Crew is a powerful, generic multi-agent review platform that uses AI agen
 - **Multi-Agent Reviews**: Configure any number of reviewer agents with custom personas
 - **Multi-Document Support**: Review entire document collections with manifest-driven configuration
 - **Intelligent Analysis**: Synthesis agents integrate feedback, resolve conflicts, and prioritize recommendations  
+- **Clean Markdown Output**: Generates readable, shareable markdown reports with clear structure
 - **Generic & Extensible**: Works with any content type - not limited to specific domains
 - **Smart Context Management**: Automatic chunking for large reviews with smaller models
 - **Multiple LLM Providers**: AWS Bedrock, LM Studio, Ollama support
@@ -317,8 +318,8 @@ python -m src.cli.main review technical-docs/ --provider lm_studio --async-mode
 # Review with specific output
 python -m src.cli.main review document-collection/ -o comprehensive_review.md
 
-# Export structured results
-python -m src.cli.main review docs/ --export-format json --export-path results.json
+# Review with structured markdown output
+python -m src.cli.main review docs/ -o comprehensive_review.md
 ```
 
 ### Directory Structure Example
@@ -518,9 +519,8 @@ For models with smaller context windows, the system automatically handles large 
 --no-analysis                # Disable analysis stage (reviewers only)
 --max-context-length INT     # Context limit for chunking (default: 4096)
 
-# Export options
---export-format FORMAT       # Export format: json, html, summary
---export-path PATH           # Path to save exported results
+# Output control
+--no-content                 # Hide original content in markdown output
 
 # Model configuration
 --model-url URL              # Custom model URL
@@ -528,7 +528,7 @@ For models with smaller context windows, the system automatically handles large 
 ```
 
 ### Output Format
-The system generates structured output with clear sections:
+The system generates clean, readable markdown output with clear sections:
 
 1. **Original Content** (optional, use `--no-content` to hide)
 2. **Context Information** (optional, use `--include-context` to show contextualizer results)
@@ -540,6 +540,8 @@ The system generates structured output with clear sections:
 - **Cross-Document Analysis** - Relationships and consistency analysis
 - **Document-Specific Reviews** - Individual feedback per document
 - **Synthesis & Recommendations** - Integrated multi-document insights
+
+All output is formatted as clean, readable markdown that can be easily reviewed, shared, or processed further.
 
 ## Troubleshooting
 
