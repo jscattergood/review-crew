@@ -13,7 +13,9 @@ except ImportError:
 
 # Import main components that may require external dependencies
 try:
+    from .base_agent import BaseAgent
     from .review_agent import ReviewAgent
+    from .context_agent import ContextAgent
     from .conversation_manager import ConversationManager
 
     _main_components_available = True
@@ -28,7 +30,7 @@ if _analysis_available:
     __all__.extend(["AnalysisAgent", "AnalysisResult"])
 
 if _main_components_available:
-    __all__.extend(["ReviewAgent", "ConversationManager"])
+    __all__.extend(["BaseAgent", "ReviewAgent", "ContextAgent", "ConversationManager"])
 else:
     # Provide helpful error message for missing dependencies
     def _missing_dependency_error():
@@ -36,5 +38,7 @@ else:
             f"Main components not available due to missing dependencies: {_import_error}"
         )
 
+    BaseAgent = _missing_dependency_error
     ReviewAgent = _missing_dependency_error
+    ContextAgent = _missing_dependency_error
     ConversationManager = _missing_dependency_error

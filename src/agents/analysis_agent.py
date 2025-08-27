@@ -12,7 +12,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
-from .review_agent import ReviewAgent
+from .base_agent import BaseAgent
 from ..config.persona_loader import PersonaConfig
 
 import tiktoken
@@ -40,7 +40,7 @@ class AnalysisResult:
             self.priority_recommendations = []
 
 
-class AnalysisAgent:
+class AnalysisAgent(BaseAgent):
     """Agent that performs analysis on feedback from multiple review agents based on loaded persona."""
 
     def __init__(
@@ -56,16 +56,8 @@ class AnalysisAgent:
             model_provider: Model provider to use ('bedrock', 'lm_studio', 'ollama')
             model_config: Optional model configuration override
         """
-        self.persona = persona
-        self.model_provider = model_provider
-        self.model_config = model_config or {}
-
-        # Create the underlying review agent with the provided persona
-        self.agent = ReviewAgent(
-            self.persona,
-            model_provider=model_provider,
-            model_config_override=model_config,
-        )
+        # Initialize the base agent
+        super().__init__(persona, model_provider, model_config)
 
     def analyze(
         self, reviews: List[Dict[str, Any]], max_context_length: Optional[int] = None
@@ -98,26 +90,8 @@ class AnalysisAgent:
             reviews=formatted_reviews, content=""
         )
 
-        # Get the analysis by calling the underlying agent directly
-        # We bypass the ReviewAgent.review() method since it expects a different prompt format
-        result = self.agent.agent(analysis_prompt)
-
-        # Extract the text content from the response
-        if hasattr(result, "message"):
-            if isinstance(result.message, dict) and "content" in result.message:
-                if (
-                    isinstance(result.message["content"], list)
-                    and len(result.message["content"]) > 0
-                ):
-                    synthesis = result.message["content"][0].get(
-                        "text", str(result.message)
-                    )
-                else:
-                    synthesis = str(result.message["content"])
-            else:
-                synthesis = str(result.message)
-        else:
-            synthesis = str(result)
+        # Get the analysis using the base agent's invoke method
+        synthesis = self.invoke(analysis_prompt, "analysis")
 
         # Parse the structured response
         return self._parse_meta_analysis_response(synthesis)
@@ -151,26 +125,8 @@ class AnalysisAgent:
             reviews=formatted_reviews, content=""
         )
 
-        # Get the meta-analysis by calling the underlying agent directly
-        # We bypass the ReviewAgent.review_async() method since it expects a different prompt format
-        result = await self.agent.agent.invoke_async(analysis_prompt)
-
-        # Extract the text content from the response
-        if hasattr(result, "message"):
-            if isinstance(result.message, dict) and "content" in result.message:
-                if (
-                    isinstance(result.message["content"], list)
-                    and len(result.message["content"]) > 0
-                ):
-                    synthesis = result.message["content"][0].get(
-                        "text", str(result.message)
-                    )
-                else:
-                    synthesis = str(result.message["content"])
-            else:
-                synthesis = str(result.message)
-        else:
-            synthesis = str(result)
+        # Get the meta-analysis using the base agent's invoke_async method
+        synthesis = await self.invoke_async(analysis_prompt, "analysis_async")
 
         # Parse the structured response
         return self._parse_meta_analysis_response(synthesis)
@@ -257,24 +213,7 @@ class AnalysisAgent:
             )
 
             # Get analysis for this chunk
-            result = self.agent.agent(analysis_prompt)
-
-            # Extract text content
-            if hasattr(result, "message"):
-                if isinstance(result.message, dict) and "content" in result.message:
-                    if (
-                        isinstance(result.message["content"], list)
-                        and len(result.message["content"]) > 0
-                    ):
-                        chunk_analysis = result.message["content"][0].get(
-                            "text", str(result.message)
-                        )
-                    else:
-                        chunk_analysis = str(result.message["content"])
-                else:
-                    chunk_analysis = str(result.message)
-            else:
-                chunk_analysis = str(result)
+            chunk_analysis = self.invoke(analysis_prompt, f"chunk_analysis_{i}")
 
             chunk_analyses.append(chunk_analysis)
 
@@ -475,24 +414,7 @@ Provide strategic advice based on the complete picture from all reviews.
 Focus on creating a comprehensive synthesis that captures the full scope of all reviewer feedback. Write as if you analyzed all reviews directly, not as chunks."""
 
         # Get the final synthesis
-        result = self.agent.agent(synthesis_prompt)
-
-        # Extract text content
-        if hasattr(result, "message"):
-            if isinstance(result.message, dict) and "content" in result.message:
-                if (
-                    isinstance(result.message["content"], list)
-                    and len(result.message["content"]) > 0
-                ):
-                    synthesis = result.message["content"][0].get(
-                        "text", str(result.message)
-                    )
-                else:
-                    synthesis = str(result.message["content"])
-            else:
-                synthesis = str(result.message)
-        else:
-            synthesis = str(result)
+        synthesis = self.invoke(synthesis_prompt, "final_synthesis")
 
         # Parse the final synthesis
         return self._parse_meta_analysis_response(synthesis)

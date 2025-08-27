@@ -74,7 +74,7 @@ def register_user(email, password):
         """Test complete review workflow with mocked LLM responses."""
         
         # Mock the Strands Agent and ReviewAgent to avoid actual LLM calls
-        with patch('src.agents.review_agent.Agent') as mock_agent_class, \
+        with patch('src.agents.base_agent.Agent') as mock_agent_class, \
              patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class:
             # Create a single mock ReviewAgent that can handle multiple calls
             mock_review_agent = Mock()
@@ -126,7 +126,7 @@ def register_user(email, password):
     def test_context_integration(self, sample_content, sample_context):
         """Test context processing integration."""
         
-        with patch('src.agents.review_agent.Agent') as mock_agent_class, \
+        with patch('src.agents.base_agent.Agent') as mock_agent_class, \
              patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class, \
              patch('src.agents.conversation_manager.ContextAgent') as mock_context_agent_class:
             
@@ -183,7 +183,7 @@ curl -X POST api.example.com/register -d "email=user@example.com"
 **Response:** Returns user data including password hash.
 """
         
-        with patch('src.agents.review_agent.Agent') as mock_agent_class, \
+        with patch('src.agents.base_agent.Agent') as mock_agent_class, \
              patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class:
             
             mock_review_agent = Mock()
@@ -228,7 +228,7 @@ curl -X POST api.example.com/register -d "email=user@example.com"
             "content": ["documentation", "clarity", "explanation"]
         }
         
-        with patch('src.agents.review_agent.Agent') as mock_agent_class, \
+        with patch('src.agents.base_agent.Agent') as mock_agent_class, \
              patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class:
             
             # Create mock ReviewAgent with expected feedback patterns

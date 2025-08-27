@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
-from .review_agent import ReviewAgent
+from .base_agent import BaseAgent
 from ..config.persona_loader import PersonaConfig, PersonaLoader
 
 
@@ -27,7 +27,7 @@ class ContextResult:
             self.timestamp = datetime.now()
 
 
-class ContextAgent:
+class ContextAgent(BaseAgent):
     """Agent that processes and formats contextual information using a contextualizer persona."""
 
     def __init__(
@@ -43,16 +43,8 @@ class ContextAgent:
             model_provider: Model provider to use ('bedrock', 'lm_studio', 'ollama')
             model_config: Optional model configuration override
         """
-        self.persona = persona
-        self.model_provider = model_provider
-        self.model_config = model_config or {}
-
-        # Create the underlying review agent with the provided persona
-        self.agent = ReviewAgent(
-            self.persona,
-            model_provider=model_provider,
-            model_config_override=model_config,
-        )
+        # Initialize the base agent
+        super().__init__(persona, model_provider, model_config)
 
     def process_context(self, context_data: str) -> Optional[ContextResult]:
         """Process and format contextual information using the contextualizer persona.
@@ -65,8 +57,11 @@ class ContextAgent:
         """
         # Agent is guaranteed to exist since we pass persona in constructor
 
-        # Use the contextualizer agent to process the context
-        result = self.agent.review(context_data)
+        # Format the prompt with the context data
+        prompt = self.persona.prompt_template.format(content=context_data)
+        
+        # Use the base agent's invoke method
+        result = self.invoke(prompt, "context_processing")
 
         # Parse the structured response
         return self._parse_context_response(result)
@@ -82,8 +77,11 @@ class ContextAgent:
         """
         # Agent is guaranteed to exist since we pass persona in constructor
 
-        # Use the contextualizer agent to process the context
-        result = await self.agent.review_async(context_data)
+        # Format the prompt with the context data
+        prompt = self.persona.prompt_template.format(content=context_data)
+        
+        # Use the base agent's invoke_async method
+        result = await self.invoke_async(prompt, "context_processing_async")
 
         # Parse the structured response
         return self._parse_context_response(result)
