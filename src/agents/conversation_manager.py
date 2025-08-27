@@ -173,7 +173,7 @@ class ConversationManager:
 
     def _load_specific_contextualizers(self, contextualizer_personas: List) -> None:
         """Load specific contextualizer personas as context agents.
-        
+
         Args:
             contextualizer_personas: List of PersonaConfig objects for contextualizers
         """
@@ -203,15 +203,13 @@ class ConversationManager:
 
     def _load_specific_analyzers(self, analyzer_personas: List) -> None:
         """Load specific analyzer personas as analysis agents.
-        
+
         Args:
             analyzer_personas: List of PersonaConfig objects for analyzers
         """
         try:
             if analyzer_personas:
-                print(
-                    f"✅ Loading {len(analyzer_personas)} selected analyzer personas"
-                )
+                print(f"✅ Loading {len(analyzer_personas)} selected analyzer personas")
 
                 # Create analysis agents for selected analyzer personas
                 self.analysis_agents = []
@@ -500,22 +498,26 @@ class ConversationManager:
         manifest_path = directory_path / "manifest.yaml"
         documents = []
         compiled_content = ""
-        
+
         if manifest_path.exists():
             print(f"📋 Found manifest file, using manifest-driven document loading")
             manifest_config = self._load_manifest(manifest_path)
-            
+
             # Load documents according to manifest specification
-            documents = self._collect_documents_from_manifest(manifest_config, directory_path)
-            
+            documents = self._collect_documents_from_manifest(
+                manifest_config, directory_path
+            )
+
             if not documents:
-                print("⚠️  No documents specified in manifest, falling back to directory scan")
+                print(
+                    "⚠️  No documents specified in manifest, falling back to directory scan"
+                )
                 documents = self._collect_documents_from_directory(directory_path)
         else:
             print(f"📁 No manifest found, scanning directory for documents")
             # No manifest - collect all documents from directory
             documents = self._collect_documents_from_directory(directory_path)
-            
+
         if not documents:
             raise ValueError(f"No readable documents found in {directory_path}")
 
@@ -545,7 +547,7 @@ class ConversationManager:
         # If manifest exists, process advanced features and run manifest-driven review
         if manifest_path.exists():
             manifest_config = self._load_manifest(manifest_path)
-            
+
             # Process advanced manifest features
             enhanced_manifest = self._process_advanced_manifest(
                 manifest_config, directory_path
@@ -614,14 +616,14 @@ class ConversationManager:
             List of document dictionaries with 'name', 'content', and 'type' keys
         """
         documents = []
-        
+
         review_config = manifest_config.get("review_configuration", {})
         document_config = review_config.get("documents", {})
-        
+
         if not document_config:
             print("  ℹ️  No documents section found in manifest")
             return documents
-            
+
         # Load primary document
         primary_doc = document_config.get("primary")
         if primary_doc:
@@ -630,50 +632,62 @@ class ConversationManager:
                 try:
                     with open(primary_path, "r", encoding="utf-8") as f:
                         content = f.read()
-                    documents.append({
-                        "name": primary_path.name,
-                        "content": content,
-                        "type": "primary",
-                        "manifest_path": primary_doc
-                    })
+                    documents.append(
+                        {
+                            "name": primary_path.name,
+                            "content": content,
+                            "type": "primary",
+                            "manifest_path": primary_doc,
+                        }
+                    )
                     print(f"  ✓ Loaded primary document: {primary_doc}")
                 except Exception as e:
                     print(f"  ⚠️  Failed to load primary document {primary_doc}: {e}")
             else:
                 print(f"  ⚠️  Primary document not found: {primary_doc}")
-        
+
         # Load supporting documents
         supporting_docs = document_config.get("supporting", [])
         for supporting_doc in supporting_docs:
-            supporting_path = self._resolve_document_path(supporting_doc, directory_path)
+            supporting_path = self._resolve_document_path(
+                supporting_doc, directory_path
+            )
             if supporting_path and supporting_path.exists():
                 try:
                     with open(supporting_path, "r", encoding="utf-8") as f:
                         content = f.read()
-                    documents.append({
-                        "name": supporting_path.name,
-                        "content": content,
-                        "type": "supporting",
-                        "manifest_path": supporting_doc
-                    })
+                    documents.append(
+                        {
+                            "name": supporting_path.name,
+                            "content": content,
+                            "type": "supporting",
+                            "manifest_path": supporting_doc,
+                        }
+                    )
                     print(f"  ✓ Loaded supporting document: {supporting_doc}")
                 except Exception as e:
-                    print(f"  ⚠️  Failed to load supporting document {supporting_doc}: {e}")
+                    print(
+                        f"  ⚠️  Failed to load supporting document {supporting_doc}: {e}"
+                    )
             else:
                 print(f"  ⚠️  Supporting document not found: {supporting_doc}")
-        
+
         if documents:
-            print(f"  📋 Manifest specified {len(documents)} documents ({len([d for d in documents if d['type'] == 'primary'])} primary, {len([d for d in documents if d['type'] == 'supporting'])} supporting)")
-        
+            print(
+                f"  📋 Manifest specified {len(documents)} documents ({len([d for d in documents if d['type'] == 'primary'])} primary, {len([d for d in documents if d['type'] == 'supporting'])} supporting)"
+            )
+
         return documents
 
-    def _resolve_document_path(self, doc_path: str, base_directory: Path) -> Optional[Path]:
+    def _resolve_document_path(
+        self, doc_path: str, base_directory: Path
+    ) -> Optional[Path]:
         """Resolve document path relative to base directory.
-        
+
         Args:
             doc_path: Document path from manifest (can be relative)
             base_directory: Base directory for resolving relative paths
-            
+
         Returns:
             Resolved Path object or None if invalid
         """
@@ -688,7 +702,7 @@ class ConversationManager:
             else:
                 # Relative to base directory
                 resolved_path = base_directory / doc_path
-            
+
             return resolved_path
         except Exception as e:
             print(f"  ⚠️  Failed to resolve document path {doc_path}: {e}")
@@ -708,7 +722,9 @@ class ConversationManager:
         # Separate primary and supporting documents for better organization
         primary_docs = [doc for doc in documents if doc.get("type") == "primary"]
         supporting_docs = [doc for doc in documents if doc.get("type") == "supporting"]
-        other_docs = [doc for doc in documents if doc.get("type") not in ["primary", "supporting"]]
+        other_docs = [
+            doc for doc in documents if doc.get("type") not in ["primary", "supporting"]
+        ]
 
         # Compile primary documents first
         for doc in primary_docs:
@@ -1244,22 +1260,30 @@ class ConversationManager:
         original_context_agents = self.context_agents  # Store original context agents
         if review_config:
             try:
-                selected_contextualizers = self.persona_loader.load_contextualizers_from_manifest(
-                    review_config
+                selected_contextualizers = (
+                    self.persona_loader.load_contextualizers_from_manifest(
+                        review_config
+                    )
                 )
                 if selected_contextualizers:
-                    print(f"🎯 Manifest specified {len(selected_contextualizers)} contextualizers")
+                    print(
+                        f"🎯 Manifest specified {len(selected_contextualizers)} contextualizers"
+                    )
                     # Replace context agents temporarily
                     self._load_specific_contextualizers(selected_contextualizers)
                 else:
-                    print("📋 No contextualizers specified in manifest, using all available")
+                    print(
+                        "📋 No contextualizers specified in manifest, using all available"
+                    )
             except Exception as e:
                 print(f"⚠️  Error loading contextualizers from manifest: {e}")
                 print("📋 Falling back to all available contextualizers")
 
         # Load analyzers based on manifest
         selected_analyzers = []
-        original_analysis_agents = self.analysis_agents  # Store original analysis agents
+        original_analysis_agents = (
+            self.analysis_agents
+        )  # Store original analysis agents
         if review_config and self.enable_analysis:
             try:
                 selected_analyzers = self.persona_loader.load_analyzers_from_manifest(
@@ -1302,17 +1326,19 @@ class ConversationManager:
             finally:
                 # Restore original agents
                 self.agents = original_agents
-                
+
                 # Restore original context agents
                 self.context_agents = original_context_agents
-                
+
                 # Restore original analysis agents
-                if 'original_analysis_agents' in locals():
+                if "original_analysis_agents" in locals():
                     self.analysis_agents = original_analysis_agents
         else:
             # No specific reviewers found, use standard review with enhanced context
             try:
-                result = self._run_single_document_review(content, enhanced_context, None)
+                result = self._run_single_document_review(
+                    content, enhanced_context, None
+                )
 
                 # Apply output configuration if specified
                 if review_config.get("processed_output"):
@@ -1321,11 +1347,11 @@ class ConversationManager:
                 return result
             finally:
                 # Restore original context agents even if no specific reviewers
-                if 'original_context_agents' in locals():
+                if "original_context_agents" in locals():
                     self.context_agents = original_context_agents
-                
-                # Restore original analysis agents even if no specific reviewers  
-                if 'original_analysis_agents' in locals():
+
+                # Restore original analysis agents even if no specific reviewers
+                if "original_analysis_agents" in locals():
                     self.analysis_agents = original_analysis_agents
 
     async def run_review_async(

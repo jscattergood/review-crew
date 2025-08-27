@@ -84,7 +84,7 @@ lint:
 format:
 	@echo "🎨 Formatting code..."
 	@if command -v black >/dev/null 2>&1; then \
-		black src/ setup_personas.py; \
+		black src/; \
 	else \
 		echo "black not installed. Run 'make dev-install' first."; \
 	fi
