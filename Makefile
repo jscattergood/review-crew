@@ -1,7 +1,7 @@
 # Review-Crew Makefile
 # Provides convenient commands for development, testing, and running the project
 
-.PHONY: help install setup test clean lint format check run-example personas validate
+.PHONY: help install setup test clean lint format check run-example personas persona-types validate
 
 # Helper to source .env file and activate virtual environment
 define run_with_env
@@ -25,7 +25,8 @@ help:
 	@echo ""
 	@echo "Testing & Validation:"
 	@echo "  test             Run all tests"
-	@echo "  personas         List all available personas"
+	@echo "  personas         List all available personas by type"
+	@echo "  persona-types    Show persona type breakdown summary"
 	@echo "  validate         Validate all persona configurations"
 	@echo ""
 	@echo "Development:"
@@ -57,19 +58,27 @@ test:
 	@echo "✅ All tests passed!"
 
 personas:
-	@echo "🎭 Available personas:"
+	@echo "🎭 Available personas by type:"
 	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python -c "from src.config.persona_loader import PersonaLoader; loader = PersonaLoader(); [print(f'  - {p}') for p in loader.list_available_personas()]" 2>/dev/null || echo "  No personas found. Run 'make setup' first."; \
+		source .venv/bin/activate && python -c "from src.config.persona_loader import PersonaLoader; loader = PersonaLoader(); personas = loader.load_all_persona_types(); total = sum(len(p) for p in personas.values()); print(f'Total: {total} personas loaded'); [print(f'\n📋 {ptype.upper()} ({len(plist)}):') or [print(f'  - {p.name}') for p in plist] for ptype, plist in personas.items() if plist]" 2>/dev/null || echo "  No personas found. Check your configuration."; \
 	else \
-		python3 -c "from src.config.persona_loader import PersonaLoader; loader = PersonaLoader(); [print(f'  - {p}') for p in loader.list_available_personas()]" 2>/dev/null || echo "  No personas found. Run 'make setup' first."; \
+		python3 -c "from src.config.persona_loader import PersonaLoader; loader = PersonaLoader(); personas = loader.load_all_persona_types(); total = sum(len(p) for p in personas.values()); print(f'Total: {total} personas loaded'); [print(f'\n📋 {ptype.upper()} ({len(plist)}):') or [print(f'  - {p.name}') for p in plist] for ptype, plist in personas.items() if plist]" 2>/dev/null || echo "  No personas found. Check your configuration."; \
 	fi
 
 validate:
 	@echo "✅ Validating persona configurations..."
 	@if [ -f .venv/bin/activate ]; then \
-		source .venv/bin/activate && python -c "from src.config.persona_loader import PersonaLoader; loader = PersonaLoader(); personas = loader.load_all_personas(); print(f'✅ Successfully loaded {len(personas)} personas'); [print(f'  ✓ {p.name} ({p.role})') for p in personas]" 2>/dev/null || echo "❌ Validation failed. Check your configurations."; \
+		source .venv/bin/activate && python -c "from src.config.persona_loader import PersonaLoader; loader = PersonaLoader(); personas = loader.load_all_persona_types(); total = sum(len(p) for p in personas.values()); print(f'✅ Successfully loaded {total} personas across {len([k for k, v in personas.items() if v])} types'); [print(f'\n📋 {ptype.upper()} ({len(plist)}):') or [print(f'  ✓ {p.name} ({p.role})') for p in plist] for ptype, plist in personas.items() if plist]" 2>/dev/null || echo "❌ Validation failed. Check your configurations."; \
 	else \
-		python3 -c "from src.config.persona_loader import PersonaLoader; loader = PersonaLoader(); personas = loader.load_all_personas(); print(f'✅ Successfully loaded {len(personas)} personas'); [print(f'  ✓ {p.name} ({p.role})') for p in personas]" 2>/dev/null || echo "❌ Validation failed. Check your configurations."; \
+		python3 -c "from src.config.persona_loader import PersonaLoader; loader = PersonaLoader(); personas = loader.load_all_persona_types(); total = sum(len(p) for p in personas.values()); print(f'✅ Successfully loaded {total} personas across {len([k for k, v in personas.items() if v])} types'); [print(f'\n📋 {ptype.upper()} ({len(plist)}):') or [print(f'  ✓ {p.name} ({p.role})') for p in plist] for ptype, plist in personas.items() if plist]" 2>/dev/null || echo "❌ Validation failed. Check your configurations."; \
+	fi
+
+persona-types:
+	@echo "🎭 Persona types breakdown:"
+	@if [ -f .venv/bin/activate ]; then \
+		source .venv/bin/activate && python -c "from src.config.persona_loader import PersonaLoader; loader = PersonaLoader(); personas = loader.load_all_persona_types(); print('\\n'.join([f'{ptype.capitalize()}: {len(plist)} personas' for ptype, plist in personas.items()])); print(f'\\nTotal: {sum(len(p) for p in personas.values())} personas')" 2>/dev/null || echo "  No personas found. Check your configuration."; \
+	else \
+		python3 -c "from src.config.persona_loader import PersonaLoader; loader = PersonaLoader(); personas = loader.load_all_persona_types(); print('\\n'.join([f'{ptype.capitalize()}: {len(plist)} personas' for ptype, plist in personas.items()])); print(f'\\nTotal: {sum(len(p) for p in personas.values())} personas')" 2>/dev/null || echo "  No personas found. Check your configuration."; \
 	fi
 
 # Development targets
@@ -162,7 +171,7 @@ status:
 	@if [ -d "examples/personas" ]; then echo "  ✅ Example personas available"; else echo "  ❌ Example personas missing"; fi
 	@if [ -d "config/personas" ]; then echo "  ✅ Custom personas configured"; else echo "  ⚠️  Custom personas not set up (run 'make setup')"; fi
 	@echo ""
-	@make personas 2>/dev/null || echo "  ❌ Cannot load personas"
+	@make persona-types 2>/dev/null || echo "  ❌ Cannot load personas"
 
 # Full project initialization for new users
 init: install setup test

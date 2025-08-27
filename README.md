@@ -5,6 +5,7 @@ Review-Crew is a powerful, generic multi-agent review platform that uses AI agen
 
 ### Key Features
 - **Multi-Agent Reviews**: Configure any number of reviewer agents with custom personas
+- **Multi-Document Support**: Review entire document collections with manifest-driven configuration
 - **Intelligent Analysis**: Synthesis agents integrate feedback, resolve conflicts, and prioritize recommendations  
 - **Generic & Extensible**: Works with any content type - not limited to specific domains
 - **Smart Context Management**: Automatic chunking for large reviews with smaller models
@@ -115,6 +116,10 @@ make review ARGS='"$(cat path/to/your/file.txt)"'
 # Review with output file
 make review-lm ARGS='path/to/file.txt --output results.txt'
 
+# Multi-document reviews
+make review-lm ARGS='project-docs/'
+make review-lm-async ARGS='document-collection/ --output comprehensive_review.md'
+
 # Pipe content with options
 cat essay.txt | make review-lm-async ARGS='--output results.txt --async-mode'
 ```
@@ -125,6 +130,10 @@ cat essay.txt | make review-lm-async ARGS='--output results.txt --async-mode'
 ```bash
 # Review a file directly
 python -m src.cli.main review path/to/your/file.txt
+
+# Multi-document review
+python -m src.cli.main review project-docs/
+python -m src.cli.main review document-collection/ --provider lm_studio --async-mode
 
 # Pipe content from stdin
 cat essay.txt | python -m src.cli.main review
@@ -158,6 +167,182 @@ python -m src.cli.main review "content" --provider ollama --model-id llama2
 python -m src.cli.main review "content" --context context_file.txt
 python -m src.cli.main review "content" --context context_file.txt --include-context
 ```
+
+## Multi-Document Reviews
+
+Review-Crew supports reviewing entire document collections with advanced manifest-driven configuration. This is perfect for reviewing applications, project documentation, or any related set of documents that should be evaluated together.
+
+### Basic Multi-Document Usage
+
+```bash
+# Review all documents in a directory
+python -m src.cli.main review project-docs/
+
+# With LM Studio (recommended)
+make review-lm ARGS='project-docs/'
+
+# Async multi-document review (fastest)
+make review-lm-async ARGS='project-docs/'
+```
+
+### Manifest Configuration
+
+Place a `manifest.yaml` file in your document directory to control the review process:
+
+**Basic Manifest Example:**
+```yaml
+review_configuration:
+  name: "Document Review"
+  description: "Comprehensive document review"
+  
+  # Agent Selection
+  reviewers:
+    - "Content Reviewer"
+    - "Technical Reviewer"
+  
+  analyzers:
+    - "Quality Metrics Analyzer"
+```
+
+**Advanced Manifest Example:**
+```yaml
+review_configuration:
+  name: "Multi-Document Project Review"
+  description: "Comprehensive review with document relationships"
+  version: "2.0"
+  
+  # Agent Configuration
+  contextualizers:
+    - "Business Context Formatter"
+  
+  reviewers:
+    - "Content Reviewer"
+    - "Technical Reviewer"
+  
+  analyzers:
+    - "Quality Metrics Analyzer"
+  
+  # Document Structure
+  documents:
+    primary: "main_document.md"
+    supporting:
+      - "technical_spec.md"
+      - "user_guide.md"
+    
+    # Context files provide background information
+    context_files:
+      - path: "project_requirements.md"
+        type: "requirements"
+        weight: "high"
+      - path: "context/business_context.md"
+        type: "business_context"
+        weight: "medium"
+    
+    # Document relationships guide review focus
+    relationships:
+      - source: "technical_spec.md"
+        target: "main_document.md"
+        type: "complements"
+        note: "Technical details should align with main document"
+      
+      - source: "project_requirements.md"
+        target: "main_document.md"
+        type: "evidence_support"
+        note: "Requirements should validate document approach"
+  
+  # Review Focus Configuration
+  review_focus:
+    primary_concerns:
+      - concern: "Cross-document consistency"
+        weight: "high"
+        description: "Ensure technical and content consistency across documents"
+      
+      - concern: "Requirements alignment"
+        weight: "medium"
+        description: "Each document should align with project requirements"
+  
+  # Processing Configuration
+  processing:
+    max_content_length: 8000
+```
+
+### Manifest Features
+
+**Agent Selection:**
+- `reviewers`: Specific reviewer personas to use
+- `reviewer_categories`: Load reviewers by category (academic, technical, content, business)
+- `contextualizers`: Agents to process context before reviews
+- `analyzers`: Analysis agents for synthesis
+
+**Document Configuration:**
+- `primary`: Main document for review
+- `supporting`: Additional documents that support the primary
+- `context_files`: Background information with type and weight
+- `relationships`: Define how documents relate to each other
+
+**Review Focus:**
+- `primary_concerns`: High-priority review areas
+- `secondary_concerns`: Additional focus points
+- Each concern has weight (critical/high/medium/low) and description
+
+**Processing Rules:**
+- `max_content_length`: Token limit for analysis
+- Custom processing instructions
+
+### Document Relationships
+
+Define how documents relate to guide reviewer focus:
+
+**Relationship Types:**
+- `complements`: Documents that should build on each other
+- `evidence_support`: Background that validates claims
+- `relates_to`: General relationship
+- `contradicts`: Documents that might conflict (flagged for review)
+
+**Context File Types:**
+- `requirements`: Project requirements and specifications
+- `business_context`: Business background and stakeholder information
+- `analysis_supplement`: Additional analysis context
+- `general`: General context information
+
+### Multi-Document Examples
+
+```bash
+# Review project documentation with manifest
+make review-lm ARGS='project-docs/'
+
+# Review technical documentation
+python -m src.cli.main review technical-docs/ --provider lm_studio --async-mode
+
+# Review with specific output
+python -m src.cli.main review document-collection/ -o comprehensive_review.md
+
+# Export structured results
+python -m src.cli.main review docs/ --export-format json --export-path results.json
+```
+
+### Directory Structure Example
+
+```
+project-docs/
+├── manifest.yaml              # Review configuration
+├── main_document.md          # Primary document
+├── technical_spec.md         # Supporting document
+├── user_guide.md             # Supporting document
+├── project_requirements.md   # Context file
+└── context/
+    └── business_context.md   # Additional context
+```
+
+**Without Manifest:**
+- Reviews all readable files in directory
+- Uses all available reviewers
+- Basic document compilation
+
+**With Manifest:**
+- Uses specified reviewers and configuration
+- Processes documents according to relationships
+- Applies custom review focus and processing rules
 
 ### LLM Configuration
 Before running reviews, configure your LLM provider:
@@ -325,12 +510,17 @@ For models with smaller context windows, the system automatically handles large 
 
 # Agent selection
 --agents AGENT               # Use specific agents (can repeat)
+                            # Note: Overridden by manifest.yaml when present
 
 # Context and analysis control
 --context PATH               # Path to context file processed by contextualizers
 --include-context            # Include contextualizer results in output
 --no-analysis                # Disable analysis stage (reviewers only)
 --max-context-length INT     # Context limit for chunking (default: 4096)
+
+# Export options
+--export-format FORMAT       # Export format: json, html, summary
+--export-path PATH           # Path to save exported results
 
 # Model configuration
 --model-url URL              # Custom model URL
@@ -344,6 +534,12 @@ The system generates structured output with clear sections:
 2. **Context Information** (optional, use `--include-context` to show contextualizer results)
 3. **Individual Reviews** - Detailed feedback from each reviewer
 4. **Analysis & Synthesis** - Integrated insights and recommendations
+
+**Multi-Document Output:**
+- **Document Collection Summary** - Overview of all documents reviewed
+- **Cross-Document Analysis** - Relationships and consistency analysis
+- **Document-Specific Reviews** - Individual feedback per document
+- **Synthesis & Recommendations** - Integrated multi-document insights
 
 ## Troubleshooting
 
