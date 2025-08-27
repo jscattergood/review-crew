@@ -61,7 +61,6 @@ def cli():
     is_flag=True,
     help="Include context results from contextualizers in the output",
 )
-
 def review(
     content: Optional[str],
     agents: tuple,
@@ -75,7 +74,6 @@ def review(
     context: Optional[str],
     max_context_length: Optional[int],
     include_context: bool,
-
 ):
     """Review content with multiple AI agents.
 
@@ -236,8 +234,6 @@ def review(
                 click.echo(f"💾 Results saved to: {output}")
             except Exception as e:
                 click.echo(f"❌ Error saving to {output}: {e}", err=True)
-
-
 
     except Exception as e:
         click.echo(f"❌ Error during review: {e}", err=True)

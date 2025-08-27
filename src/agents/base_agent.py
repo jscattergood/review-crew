@@ -43,42 +43,40 @@ class BaseAgent:
         # Log the system prompt when the agent is created
         self._log_prompt(system_prompt, "system_prompt")
 
-        self.agent = Agent(
-            name=persona.name, model=model, system_prompt=system_prompt
-        )
+        self.agent = Agent(name=persona.name, model=model, system_prompt=system_prompt)
 
     def _setup_agent_logging(self):
         """Setup dedicated logging for this agent."""
         # Create logs directory if it doesn't exist
         log_dir = "logs"
         os.makedirs(log_dir, exist_ok=True)
-        
+
         # Create agent-specific logger
         agent_name = self.persona.name.replace(" ", "_").lower()
         self.logger_name = f"agent_{agent_name}"
         self.logger = logging.getLogger(self.logger_name)
-        
+
         # Avoid duplicate handlers
         if not self.logger.handlers:
             self.logger.setLevel(logging.INFO)
-            
+
             # Create file handler for agent-specific log
             log_file = os.path.join(log_dir, f"{agent_name}_prompts.log")
             file_handler = logging.FileHandler(log_file)
             file_handler.setLevel(logging.INFO)
-            
+
             # Create formatter
             formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
             )
             file_handler.setFormatter(formatter)
-            
+
             # Add handler to logger
             self.logger.addHandler(file_handler)
 
     def _log_prompt(self, prompt: str, prompt_type: str = "review"):
         """Log the prompt to the dedicated agent log.
-        
+
         Args:
             prompt: The prompt being sent to the agent
             prompt_type: Type of prompt (e.g., 'review', 'analysis')
@@ -87,10 +85,10 @@ class BaseAgent:
             # Log header with metadata
             header = f"[{prompt_type.upper()}] Prompt sent to {self.persona.name}"
             self.logger.info(header)
-            
+
             # Log the clean prompt content that can be easily copy-pasted
             self.logger.info(prompt)
-            
+
             # Log separator for readability
             self.logger.info("-" * 80)
         except Exception as e:
@@ -271,10 +269,10 @@ Be professional but thorough in your analysis."""
 
     def _extract_response(self, result) -> str:
         """Extract the response content from the agent result.
-        
+
         Args:
             result: The result from the Strands agent
-            
+
         Returns:
             Extracted response as string
         """

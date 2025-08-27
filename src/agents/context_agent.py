@@ -59,7 +59,7 @@ class ContextAgent(BaseAgent):
 
         # Format the prompt with the context data
         prompt = self.persona.prompt_template.format(content=context_data)
-        
+
         # Use the base agent's invoke method
         result = self.invoke(prompt, "context_processing")
 
@@ -79,7 +79,7 @@ class ContextAgent(BaseAgent):
 
         # Format the prompt with the context data
         prompt = self.persona.prompt_template.format(content=context_data)
-        
+
         # Use the base agent's invoke_async method
         result = await self.invoke_async(prompt, "context_processing_async")
 
