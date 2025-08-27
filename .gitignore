@@ -65,3 +65,4 @@ config/*.json
 # Input and Output Directory
 input/
 output/
+logs/

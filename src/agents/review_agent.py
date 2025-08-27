@@ -5,6 +5,9 @@ This module wraps Strands Agent functionality with persona configurations
 to create specialized review agents.
 """
 
+import logging
+import os
+from datetime import datetime
 from typing import Dict, Any, Optional
 from strands import Agent
 from ..config.persona_loader import PersonaConfig
@@ -30,12 +33,69 @@ class ReviewAgent:
         self.model_provider = model_provider or "bedrock"  # Default to bedrock
         self.model_config_override = model_config_override or {}
 
+        # Setup logging
+        self._setup_agent_logging()
+
         # Create the Strands agent with persona configuration
         model = self._create_model()
+        system_prompt = self._build_system_prompt()
+
+        # Log the system prompt when the agent is created
+        self._log_prompt(system_prompt, "system_prompt")
 
         self.agent = Agent(
-            name=persona.name, model=model, system_prompt=self._build_system_prompt()
+            name=persona.name, model=model, system_prompt=system_prompt
         )
+
+    def _setup_agent_logging(self):
+        """Setup dedicated logging for this agent."""
+        # Create logs directory if it doesn't exist
+        log_dir = "logs"
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # Create agent-specific logger
+        agent_name = self.persona.name.replace(" ", "_").lower()
+        self.logger_name = f"agent_{agent_name}"
+        self.logger = logging.getLogger(self.logger_name)
+        
+        # Avoid duplicate handlers
+        if not self.logger.handlers:
+            self.logger.setLevel(logging.INFO)
+            
+            # Create file handler for agent-specific log
+            log_file = os.path.join(log_dir, f"{agent_name}_prompts.log")
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setLevel(logging.INFO)
+            
+            # Create formatter
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
+            file_handler.setFormatter(formatter)
+            
+            # Add handler to logger
+            self.logger.addHandler(file_handler)
+
+    def _log_prompt(self, prompt: str, prompt_type: str = "review"):
+        """Log the prompt to the dedicated agent log.
+        
+        Args:
+            prompt: The prompt being sent to the agent
+            prompt_type: Type of prompt (e.g., 'review', 'analysis')
+        """
+        try:
+            # Log header with metadata
+            header = f"[{prompt_type.upper()}] Prompt sent to {self.persona.name}"
+            self.logger.info(header)
+            
+            # Log the clean prompt content that can be easily copy-pasted
+            self.logger.info(prompt)
+            
+            # Log separator for readability
+            self.logger.info("-" * 80)
+        except Exception as e:
+            # Fallback to print if logging fails
+            print(f"Warning: Failed to log prompt for {self.persona.name}: {e}")
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt from persona configuration."""
@@ -44,9 +104,6 @@ class ReviewAgent:
 Your goal: {self.persona.goal}
 
 Background: {self.persona.backstory}
-
-When reviewing content, follow this approach:
-{self.persona.prompt_template}
 
 Always provide constructive, specific feedback with actionable recommendations.
 Be professional but thorough in your analysis."""
@@ -186,6 +243,9 @@ Be professional but thorough in your analysis."""
         # Format the prompt with the content
         prompt = self.persona.prompt_template.format(content=content)
 
+        # Log the prompt to the dedicated agent log
+        self._log_prompt(prompt, "review")
+
         # Get response from the Strands agent
         result = self.agent(prompt)
 
@@ -215,6 +275,9 @@ Be professional but thorough in your analysis."""
         """
         # Format the prompt with the content
         prompt = self.persona.prompt_template.format(content=content)
+
+        # Log the prompt to the dedicated agent log
+        self._log_prompt(prompt, "review_async")
 
         # Get async response from the Strands agent
         result = await self.agent.invoke_async(prompt)
