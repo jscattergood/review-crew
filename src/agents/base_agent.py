@@ -5,15 +5,21 @@ This module provides the base functionality for all agent types in the review cr
 All specific agent types (ReviewAgent, AnalysisAgent, ContextAgent) inherit from this base class.
 """
 
+import asyncio
 import logging
 import os
 from datetime import datetime
 from typing import Dict, Any, Optional
+
 from strands import Agent
+from strands.multiagent.base import MultiAgentBase, MultiAgentResult, NodeResult, Status
+from strands.agent.agent_result import AgentResult
+from strands.types.content import ContentBlock, Message
+
 from ..config.persona_loader import PersonaConfig
 
 
-class BaseAgent:
+class BaseAgent(MultiAgentBase):
     """Base agent class that provides common functionality for all agent types."""
 
     def __init__(
@@ -29,9 +35,11 @@ class BaseAgent:
             model_provider: Optional model provider ('bedrock', 'lm_studio', 'ollama', etc.)
             model_config_override: Optional model configuration override
         """
+        super().__init__()
         self.persona = persona
         self.model_provider = model_provider or "bedrock"  # Default to bedrock
         self.model_config_override = model_config_override or {}
+        self.name = persona.name.lower().replace(" ", "_")
 
         # Setup logging
         self._setup_agent_logging()
@@ -310,3 +318,97 @@ Be professional but thorough in your analysis."""
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+
+    def __call__(self, task, **kwargs) -> MultiAgentResult:
+        """Process task synchronously (required by MultiAgentBase).
+
+        Args:
+            task: Input content to process
+            **kwargs: Additional arguments
+
+        Returns:
+            MultiAgentResult with processing results
+        """
+        return asyncio.run(self.invoke_async_graph(task, **kwargs))
+
+    async def invoke_async_graph(self, task, **kwargs) -> MultiAgentResult:
+        """Process task asynchronously for graph execution (required by MultiAgentBase).
+
+        This method should be overridden by subclasses to provide specific
+        processing logic for ReviewAgent, ContextAgent, and AnalysisAgent.
+
+        Args:
+            task: Input content to process
+            **kwargs: Additional arguments
+
+        Returns:
+            MultiAgentResult with processing results
+        """
+        try:
+            # Extract content from task
+            content = self._extract_content_from_task(task)
+
+            # Process using the internal agent
+            response = await self.invoke_async(content)
+
+            # Create agent result
+            agent_result = AgentResult(
+                stop_reason="end_turn",
+                message=Message(
+                    role="assistant", content=[ContentBlock(text=response)]
+                ),
+                metrics={},
+                state={
+                    "agent_name": self.persona.name,
+                    "agent_role": self.persona.role,
+                    "response": response,
+                },
+            )
+
+            # Return wrapped in MultiAgentResult
+            return MultiAgentResult(
+                status=Status.COMPLETED,
+                results={
+                    self.name: NodeResult(result=agent_result, status=Status.COMPLETED)
+                },
+            )
+
+        except Exception as e:
+            # Handle errors gracefully
+            agent_result = AgentResult(
+                stop_reason="error",
+                message=Message(
+                    role="assistant",
+                    content=[ContentBlock(text=f"Processing failed: {str(e)}")],
+                ),
+                metrics={},
+                state={"error": str(e)},
+            )
+
+            return MultiAgentResult(
+                status=Status.FAILED,
+                results={
+                    self.name: NodeResult(result=agent_result, status=Status.FAILED)
+                },
+            )
+
+    def _extract_content_from_task(self, task) -> str:
+        """Extract content from various task input formats.
+
+        Args:
+            task: Input task (string, dict, or other format)
+
+        Returns:
+            Extracted content as string
+        """
+        if isinstance(task, str):
+            return task
+        elif isinstance(task, dict):
+            # Try common content keys
+            for key in ["content", "text", "compiled_content", "data"]:
+                if key in task:
+                    return str(task[key])
+            # If no common keys, stringify the whole dict
+            return str(task)
+        else:
+            return str(task)

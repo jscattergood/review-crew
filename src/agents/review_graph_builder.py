@@ -1,0 +1,606 @@
+"""
+Review Graph Builder for Strands Graph Architecture.
+
+This module provides the ReviewGraphBuilder class that constructs Strands graphs
+using our refactored agents that directly inherit from MultiAgentBase.
+"""
+
+from typing import List, Dict, Any, Optional, Callable
+from pathlib import Path
+
+from strands.multiagent import GraphBuilder
+from strands.multiagent.base import MultiAgentResult
+
+from .document_processor_node import DocumentProcessorNode
+from .review_agent import ReviewAgent
+from .context_agent import ContextAgent
+from .analysis_agent import AnalysisAgent
+from ..config.persona_loader import PersonaLoader, PersonaConfig
+
+
+class ReviewGraphBuilder:
+    """Builder class for constructing review graphs using Strands architecture.
+
+    This class creates graphs where agents can run in parallel, replacing the
+    sequential orchestration in ConversationManager.
+    """
+
+    def __init__(
+        self,
+        persona_loader: Optional[PersonaLoader] = None,
+        model_provider: str = "bedrock",
+        model_config: Optional[Dict[str, Any]] = None,
+        enable_analysis: bool = True,
+    ):
+        """Initialize the review graph builder.
+
+        Args:
+            persona_loader: Optional PersonaLoader instance
+            model_provider: Model provider to use ('bedrock', 'lm_studio', 'ollama')
+            model_config: Optional model configuration override
+            enable_analysis: Whether to enable analysis of reviews using analyzer personas
+        """
+        self.persona_loader = persona_loader or PersonaLoader()
+        self.model_provider = model_provider
+        self.model_config = model_config or {}
+        self.enable_analysis = enable_analysis
+
+        # Load available agents
+        self.review_agents = self._load_review_agents()
+        self.context_agents = self._load_context_agents()
+        self.analysis_agents = self._load_analysis_agents() if enable_analysis else []
+
+    def _load_review_agents(self) -> List[ReviewAgent]:
+        """Load all available review agents."""
+        try:
+            personas = self.persona_loader.load_reviewer_personas()
+            agents = [
+                ReviewAgent(
+                    persona,
+                    model_provider=self.model_provider,
+                    model_config_override=self.model_config,
+                )
+                for persona in personas
+            ]
+            print(f"✅ Loaded {len(agents)} review agents")
+            return agents
+        except Exception as e:
+            print(f"❌ Error loading review agents: {e}")
+            return []
+
+    def _load_context_agents(self) -> List[ContextAgent]:
+        """Load all available context agents."""
+        try:
+            personas = self.persona_loader.load_contextualizer_personas()
+            agents = [
+                ContextAgent(
+                    persona=persona,
+                    model_provider=self.model_provider,
+                    model_config=self.model_config,
+                )
+                for persona in personas
+            ]
+            print(f"✅ Loaded {len(agents)} context agents")
+            return agents
+        except Exception as e:
+            print(f"❌ Error loading context agents: {e}")
+            return []
+
+    def _load_analysis_agents(self) -> List[AnalysisAgent]:
+        """Load all available analysis agents."""
+        try:
+            personas = self.persona_loader.load_analyzer_personas()
+            agents = [
+                AnalysisAgent(
+                    persona=persona,
+                    model_provider=self.model_provider,
+                    model_config=self.model_config,
+                )
+                for persona in personas
+            ]
+            print(f"✅ Loaded {len(agents)} analysis agents")
+            return agents
+        except Exception as e:
+            print(f"❌ Error loading analysis agents: {e}")
+            return []
+
+    def build_standard_review_graph(
+        self,
+        selected_reviewers: Optional[List[str]] = None,
+        selected_contextualizers: Optional[List[str]] = None,
+        selected_analyzers: Optional[List[str]] = None,
+    ):
+        """Build a standard review graph with document processing, context, reviews, and analysis.
+
+        This creates a graph where:
+        1. DocumentProcessor runs first
+        2. Context agents run in parallel (depend on DocumentProcessor)
+        3. Review agents run in parallel (depend on DocumentProcessor + Context agents)
+        4. Analysis agents run in parallel (depend on Review agents)
+
+        Args:
+            selected_reviewers: Optional list of reviewer names to use (uses all if None)
+            selected_contextualizers: Optional list of contextualizer names to use (uses all if None)
+            selected_analyzers: Optional list of analyzer names to use (uses all if None)
+
+        Returns:
+            Built Strands Graph ready for execution
+        """
+        builder = GraphBuilder()
+
+        # 1. Add document processor as entry point
+        doc_processor = DocumentProcessorNode()
+        builder.add_node(doc_processor, "document_processor")
+        builder.set_entry_point("document_processor")
+
+        # 2. Filter and add context agents (run in parallel)
+        context_agents_to_use = self._filter_context_agents(selected_contextualizers)
+
+        for agent in context_agents_to_use:
+            builder.add_node(agent, agent.name)
+            # Context agents depend on document processor
+            builder.add_edge("document_processor", agent.name)
+
+        # 3. Filter and add review agents (run in parallel)
+        review_agents_to_use = self._filter_review_agents(selected_reviewers)
+
+        for agent in review_agents_to_use:
+            builder.add_node(agent, agent.name)
+            # Review agents depend on document processor
+            builder.add_edge("document_processor", agent.name)
+
+            # Review agents also depend on context agents (if any)
+            for context_agent in context_agents_to_use:
+                builder.add_edge(context_agent.name, agent.name)
+
+        # 4. Add analysis agents (if enabled) - run in parallel
+        if self.enable_analysis:
+            analysis_agents_to_use = self._filter_analysis_agents(selected_analyzers)
+
+            for agent in analysis_agents_to_use:
+                builder.add_node(agent, agent.name)
+
+                # Analysis agents depend on all review agents
+                for review_agent in review_agents_to_use:
+                    builder.add_edge(review_agent.name, agent.name)
+
+        print(
+            f"🏗️  Built graph with {len(review_agents_to_use)} reviewers, {len(context_agents_to_use)} contextualizers, {len(analysis_agents_to_use) if self.enable_analysis else 0} analyzers"
+        )
+
+        return builder.build()
+
+    def build_manifest_driven_graph(
+        self,
+        manifest_config: Dict[str, Any],
+        directory_path: Optional[Path] = None,
+    ):
+        """Build a review graph based on manifest configuration.
+
+        Args:
+            manifest_config: Parsed manifest configuration
+            directory_path: Optional directory path for resolving relative paths
+
+        Returns:
+            Built Strands Graph configured according to manifest
+        """
+        builder = GraphBuilder()
+
+        # 1. Add document processor as entry point
+        doc_processor = DocumentProcessorNode()
+        builder.add_node(doc_processor, "document_processor")
+        builder.set_entry_point("document_processor")
+
+        review_config = manifest_config.get("review_configuration", {})
+
+        # 2. Load agents based on manifest specification
+        selected_contextualizers = self._load_contextualizers_from_manifest(
+            review_config
+        )
+        selected_reviewers = self._load_reviewers_from_manifest(review_config)
+        selected_analyzers = self._load_analyzers_from_manifest(review_config)
+
+        # 3. Add context agents
+        for agent in selected_contextualizers:
+            builder.add_node(agent, agent.name)
+            builder.add_edge("document_processor", agent.name)
+
+        # 4. Add review agents with focus instructions if specified
+        focus_config = review_config.get("processed_focus", {})
+
+        for agent in selected_reviewers:
+            # Apply focus instructions to reviewer if available
+            if focus_config and focus_config.get("focus_instructions"):
+                agent = self._apply_focus_to_reviewer(agent, focus_config)
+
+            builder.add_node(agent, agent.name)
+            builder.add_edge("document_processor", agent.name)
+
+            # Connect to context agents
+            for context_agent in selected_contextualizers:
+                builder.add_edge(context_agent.name, agent.name)
+
+        # 5. Add analysis agents
+        for agent in selected_analyzers:
+            builder.add_node(agent, agent.name)
+
+            # Connect to all review agents
+            for review_agent in selected_reviewers:
+                builder.add_edge(review_agent.name, agent.name)
+
+        print(
+            f"🎯 Built manifest-driven graph with {len(selected_reviewers)} reviewers, {len(selected_contextualizers)} contextualizers, {len(selected_analyzers)} analyzers"
+        )
+
+        return builder.build()
+
+    def build_simple_review_graph(self, content: str):
+        """Build a simple graph for direct content review (no document processing).
+
+        Args:
+            content: Content to review directly
+
+        Returns:
+            Built Strands Graph for simple review
+        """
+        builder = GraphBuilder()
+
+        # Use all available review agents as parallel entry points
+        for agent in self.review_agents:
+            builder.add_node(agent, agent.name)
+            builder.set_entry_point(agent.name)  # Each reviewer is an entry point
+
+        # Add analysis if enabled
+        if self.enable_analysis and self.analysis_agents:
+            for agent in self.analysis_agents:
+                builder.add_node(agent, agent.name)
+
+                # Connect to all reviewers
+                for review_agent in self.review_agents:
+                    builder.add_edge(review_agent.name, agent.name)
+
+        print(
+            f"🔧 Built simple graph with {len(self.review_agents)} reviewers, {len(self.analysis_agents) if self.enable_analysis else 0} analyzers"
+        )
+
+        return builder.build()
+
+    def _filter_review_agents(
+        self, selected_names: Optional[List[str]]
+    ) -> List[ReviewAgent]:
+        """Filter review agents by name selection.
+
+        Args:
+            selected_names: List of agent names to include, or None for all
+
+        Returns:
+            Filtered list of ReviewAgent objects
+        """
+        if selected_names is None:
+            return self.review_agents
+
+        selected_lower = [name.lower() for name in selected_names]
+        filtered = [
+            agent
+            for agent in self.review_agents
+            if agent.persona.name.lower() in selected_lower
+        ]
+
+        if not filtered:
+            print(f"⚠️  No review agents found matching: {selected_names}")
+            print(
+                f"Available agents: {[agent.persona.name for agent in self.review_agents]}"
+            )
+            return self.review_agents
+
+        return filtered
+
+    def _filter_context_agents(
+        self, selected_names: Optional[List[str]]
+    ) -> List[ContextAgent]:
+        """Filter context agents by name selection.
+
+        Args:
+            selected_names: List of agent names to include, or None for all
+
+        Returns:
+            Filtered list of ContextAgent objects
+        """
+        if selected_names is None:
+            return self.context_agents
+
+        selected_lower = [name.lower() for name in selected_names]
+        filtered = [
+            agent
+            for agent in self.context_agents
+            if agent.persona.name.lower() in selected_lower
+        ]
+
+        if not filtered:
+            print(f"⚠️  No context agents found matching: {selected_names}")
+            print(
+                f"Available agents: {[agent.persona.name for agent in self.context_agents]}"
+            )
+            return self.context_agents
+
+        return filtered
+
+    def _filter_analysis_agents(
+        self, selected_names: Optional[List[str]]
+    ) -> List[AnalysisAgent]:
+        """Filter analysis agents by name selection.
+
+        Args:
+            selected_names: List of agent names to include, or None for all
+
+        Returns:
+            Filtered list of AnalysisAgent objects
+        """
+        if selected_names is None:
+            return self.analysis_agents
+
+        selected_lower = [name.lower() for name in selected_names]
+        filtered = [
+            agent
+            for agent in self.analysis_agents
+            if agent.persona.name.lower() in selected_lower
+        ]
+
+        if not filtered:
+            print(f"⚠️  No analysis agents found matching: {selected_names}")
+            print(
+                f"Available agents: {[agent.persona.name for agent in self.analysis_agents]}"
+            )
+            return self.analysis_agents
+
+        return filtered
+
+    def _load_contextualizers_from_manifest(
+        self, review_config: Dict[str, Any]
+    ) -> List[ContextAgent]:
+        """Load contextualizers based on manifest configuration.
+
+        Args:
+            review_config: Review configuration section from manifest
+
+        Returns:
+            List of selected ContextAgent objects
+        """
+        try:
+            selected_personas = self.persona_loader.load_contextualizers_from_manifest(
+                review_config
+            )
+            agents = [
+                ContextAgent(
+                    persona=persona,
+                    model_provider=self.model_provider,
+                    model_config=self.model_config,
+                )
+                for persona in selected_personas
+            ]
+            return agents
+        except Exception as e:
+            print(f"⚠️  Error loading contextualizers from manifest: {e}")
+            return self.context_agents  # Fallback to all available
+
+    def _load_reviewers_from_manifest(
+        self, review_config: Dict[str, Any]
+    ) -> List[ReviewAgent]:
+        """Load reviewers based on manifest configuration.
+
+        Args:
+            review_config: Review configuration section from manifest
+
+        Returns:
+            List of selected ReviewAgent objects
+        """
+        try:
+            selected_personas = self.persona_loader.load_reviewers_from_manifest(
+                review_config
+            )
+            agents = [
+                ReviewAgent(
+                    persona,
+                    model_provider=self.model_provider,
+                    model_config_override=self.model_config,
+                )
+                for persona in selected_personas
+            ]
+            return agents
+        except Exception as e:
+            print(f"⚠️  Error loading reviewers from manifest: {e}")
+            return self.review_agents  # Fallback to all available
+
+    def _load_analyzers_from_manifest(
+        self, review_config: Dict[str, Any]
+    ) -> List[AnalysisAgent]:
+        """Load analyzers based on manifest configuration.
+
+        Args:
+            review_config: Review configuration section from manifest
+
+        Returns:
+            List of selected AnalysisAgent objects
+        """
+        if not self.enable_analysis:
+            return []
+
+        try:
+            selected_personas = self.persona_loader.load_analyzers_from_manifest(
+                review_config
+            )
+            agents = [
+                AnalysisAgent(
+                    persona=persona,
+                    model_provider=self.model_provider,
+                    model_config=self.model_config,
+                )
+                for persona in selected_personas
+            ]
+            return agents
+        except Exception as e:
+            print(f"⚠️  Error loading analyzers from manifest: {e}")
+            return self.analysis_agents  # Fallback to all available
+
+    def _apply_focus_to_reviewer(
+        self, reviewer: ReviewAgent, focus_config: Dict[str, Any]
+    ) -> ReviewAgent:
+        """Apply focus instructions to a reviewer persona.
+
+        Args:
+            reviewer: ReviewAgent to enhance
+            focus_config: Focus configuration with instructions
+
+        Returns:
+            ReviewAgent with enhanced prompt template
+        """
+        focus_instructions = focus_config.get("focus_instructions", [])
+
+        if not focus_instructions:
+            return reviewer
+
+        # Create enhanced prompt template
+        focus_section = "\n\n## SPECIAL FOCUS AREAS FOR THIS REVIEW\n"
+        focus_section += "\n".join(focus_instructions)
+        focus_section += (
+            "\n\nPlease pay particular attention to these focus areas in your review.\n"
+        )
+
+        # Create new persona with enhanced prompt
+        enhanced_persona = PersonaConfig(
+            name=reviewer.persona.name,
+            role=reviewer.persona.role,
+            goal=reviewer.persona.goal,
+            backstory=reviewer.persona.backstory,
+            prompt_template=reviewer.persona.prompt_template + focus_section,
+            model_config=reviewer.persona.model_config,
+        )
+
+        # Create new agent with enhanced persona
+        return ReviewAgent(
+            enhanced_persona,
+            model_provider=self.model_provider,
+            model_config_override=self.model_config,
+        )
+
+    def get_available_agents_info(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Get information about all available agents.
+
+        Returns:
+            Dictionary with agent type as key and list of agent info as value
+        """
+        return {
+            "reviewers": [
+                {
+                    "name": agent.persona.name,
+                    "role": agent.persona.role,
+                    "goal": agent.persona.goal,
+                }
+                for agent in self.review_agents
+            ],
+            "contextualizers": [
+                {
+                    "name": agent.persona.name,
+                    "role": agent.persona.role,
+                    "goal": agent.persona.goal,
+                }
+                for agent in self.context_agents
+            ],
+            "analyzers": [
+                {
+                    "name": agent.persona.name,
+                    "role": agent.persona.role,
+                    "goal": agent.persona.goal,
+                }
+                for agent in self.analysis_agents
+            ],
+        }
+
+    def create_conditional_edge_function(
+        self, condition_type: str, **kwargs
+    ) -> Callable[[MultiAgentResult], bool]:
+        """Create conditional edge functions for dynamic graph routing.
+
+        Args:
+            condition_type: Type of condition ("document_type", "has_context", etc.)
+            **kwargs: Additional parameters for the condition
+
+        Returns:
+            Callable condition function for use in graph edges
+        """
+        if condition_type == "document_type":
+            expected_type = kwargs.get("expected_type", "multi")
+
+            def document_type_condition(result: MultiAgentResult) -> bool:
+                """Check if document type matches expected type."""
+                doc_processor_result = result.results.get("document_processor")
+                if not doc_processor_result:
+                    return False
+
+                # Extract document processor result from state
+                doc_result = doc_processor_result.result.state.get(
+                    "document_processor_result"
+                )
+                if not doc_result:
+                    return False
+
+                return doc_result.document_type == expected_type
+
+            return document_type_condition
+
+        elif condition_type == "has_context":
+
+            def has_context_condition(result: MultiAgentResult) -> bool:
+                """Check if context processing was successful."""
+                for node_id, node_result in result.results.items():
+                    if node_id.startswith("contextualizer_") or any(
+                        agent.name == node_id for agent in self.context_agents
+                    ):
+                        agent_state = node_result.result.state
+                        if agent_state.get("response"):
+                            return True
+                return False
+
+            return has_context_condition
+
+        elif condition_type == "reviews_successful":
+            min_reviews = kwargs.get("min_reviews", 1)
+
+            def reviews_successful_condition(result: MultiAgentResult) -> bool:
+                """Check if minimum number of reviews were successful."""
+                successful_reviews = 0
+                for node_id, node_result in result.results.items():
+                    if any(agent.name == node_id for agent in self.review_agents):
+                        if not node_result.result.state.get("error"):
+                            successful_reviews += 1
+
+                return successful_reviews >= min_reviews
+
+            return reviews_successful_condition
+
+        else:
+            raise ValueError(f"Unknown condition type: {condition_type}")
+
+    async def execute_graph(self, graph, input_data: Any) -> MultiAgentResult:
+        """Execute a graph with input data.
+
+        Args:
+            graph: Built Strands Graph
+            input_data: Input data to process
+
+        Returns:
+            MultiAgentResult with execution results
+        """
+        return await graph.invoke_async(input_data)
+
+    def execute_graph_sync(self, graph, input_data: Any) -> MultiAgentResult:
+        """Execute a graph synchronously with input data.
+
+        Args:
+            graph: Built Strands Graph
+            input_data: Input data to process
+
+        Returns:
+            MultiAgentResult with execution results
+        """
+        return graph(input_data)
