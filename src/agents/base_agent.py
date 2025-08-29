@@ -8,11 +8,11 @@ All specific agent types (ReviewAgent, AnalysisAgent, ContextAgent) inherit from
 import json
 import logging
 import os
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from strands import Agent
-from strands.multiagent.base import MultiAgentBase, MultiAgentResult, NodeResult, Status
 from strands.agent.agent_result import AgentResult
+from strands.multiagent.base import MultiAgentBase, MultiAgentResult, NodeResult, Status
 from strands.telemetry.metrics import EventLoopMetrics
 from strands.types.content import ContentBlock, Message
 
@@ -40,8 +40,8 @@ class BaseAgent(MultiAgentBase):
     def __init__(
         self,
         persona: PersonaConfig,
-        model_provider: Optional[str] = None,
-        model_config_override: Optional[Dict[str, Any]] = None,
+        model_provider: str | None = None,
+        model_config_override: dict[str, Any] | None = None,
     ):
         """Initialize a base agent with a persona configuration.
 
@@ -143,7 +143,7 @@ Be professional but thorough in your analysis."""
             # Default to bedrock
             return self._create_bedrock_model(model_config)
 
-    def _create_lm_studio_model(self, config: Dict[str, Any]):
+    def _create_lm_studio_model(self, config: dict[str, Any]):
         """Create a model for LM Studio (OpenAI-compatible API)."""
         try:
             from strands.models.openai import OpenAIModel
@@ -181,7 +181,7 @@ Be professional but thorough in your analysis."""
             print("💡 Make sure LM Studio is running at the specified URL.")
             return None
 
-    def _create_ollama_model(self, config: Dict[str, Any]):
+    def _create_ollama_model(self, config: dict[str, Any]):
         """Create an Ollama model for local inference."""
         try:
             # Check if Ollama model is available
@@ -206,7 +206,7 @@ Be professional but thorough in your analysis."""
             )
             return None
 
-    def _create_bedrock_model(self, config: Dict[str, Any]):
+    def _create_bedrock_model(self, config: dict[str, Any]):
         """Create a Bedrock model for AWS inference."""
         try:
             from strands.models import BedrockModel
@@ -216,7 +216,7 @@ Be professional but thorough in your analysis."""
             print("⚠️  Bedrock model not available.")
             return None
 
-    def _get_model_config(self) -> Dict[str, Any]:
+    def _get_model_config(self) -> dict[str, Any]:
         """Get model configuration from persona settings."""
         # Base configuration depends on provider
         if self.model_provider == "lm_studio":
@@ -298,7 +298,7 @@ Be professional but thorough in your analysis."""
         else:
             return str(result)
 
-    def get_info(self) -> Dict[str, Any]:
+    def get_info(self) -> dict[str, Any]:
         """Get information about this agent.
 
         Returns:
@@ -319,7 +319,7 @@ Be professional but thorough in your analysis."""
             "max_tokens": max_tokens,
         }
 
-    def __call__(self, task: str | List[ContentBlock], **kwargs) -> MultiAgentResult:
+    def __call__(self, task: str | list[ContentBlock], **kwargs) -> MultiAgentResult:
         """Process task synchronously by running async method (required by MultiAgentBase).
 
         Args:
@@ -334,7 +334,7 @@ Be professional but thorough in your analysis."""
         return asyncio.run(self.invoke_async(task, **kwargs))
 
     async def invoke_async(
-        self, task: str | List[ContentBlock], **kwargs
+        self, task: str | list[ContentBlock], **kwargs
     ) -> MultiAgentResult:
         """Process task asynchronously (required by MultiAgentBase).
 
@@ -351,7 +351,7 @@ Be professional but thorough in your analysis."""
         return await self.invoke_async_graph(task, **kwargs)
 
     async def invoke_async_graph(
-        self, task: str | List[ContentBlock], **kwargs
+        self, task: str | list[ContentBlock], **kwargs
     ) -> MultiAgentResult:
         """Process task asynchronously for graph execution (required by MultiAgentBase).
 
@@ -423,7 +423,7 @@ Be professional but thorough in your analysis."""
                 execution_count=1,
             )
 
-    def _extract_content_from_task(self, task: str | List[ContentBlock]) -> str:
+    def _extract_content_from_task(self, task: str | list[ContentBlock]) -> str:
         """Extract content from various task input formats.
 
         Args:

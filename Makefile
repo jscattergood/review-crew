@@ -30,9 +30,13 @@ help:
 	@echo "  validate         Validate all persona configurations"
 	@echo ""
 	@echo "Development:"
-	@echo "  lint             Run linting (flake8)"
-	@echo "  format           Format code (black)"
+	@echo "  lint             Run linting (ruff check)"
+	@echo "  lint fix         Auto-fix linting issues (ruff check --fix)"
+	@echo "  format           Format code (ruff format)"
 	@echo "  check            Run type checking (mypy)"
+	@echo "  check fix        Run type checking (mypy doesn't auto-fix, same as check)"
+	@echo "  quality          Run all code quality checks (lint + format + type check)"
+	@echo "  quality fix      Run all quality checks with auto-fixes where possible"
 	@echo ""
 	@echo "Cleanup:"
 	@echo "  clean            Clean up temporary files"
@@ -82,28 +86,60 @@ persona-types:
 
 # Development targets
 lint:
-	@echo "🔍 Running linting..."
-	@if command -v flake8 >/dev/null 2>&1; then \
-		flake8 src/; \
+	@if [ "$(filter fix,$(MAKECMDGOALS))" ]; then \
+		echo "🔧 Auto-fixing linting issues with Ruff..."; \
+		if command -v uv >/dev/null 2>&1; then \
+			uv run ruff check --fix src/; \
+		else \
+			echo "uv not available. Install uv or run 'ruff check --fix src/' directly."; \
+		fi; \
 	else \
-		echo "flake8 not installed. Run 'make dev-install' first."; \
+		echo "🔍 Running linting with Ruff..."; \
+		if command -v uv >/dev/null 2>&1; then \
+			uv run ruff check src/; \
+		else \
+			echo "uv not available. Install uv or run 'ruff check src/' directly."; \
+		fi; \
 	fi
 
+# Allow 'fix' as a target when used with lint
+fix:
+	@:
+
 format:
-	@echo "🎨 Formatting code..."
-	@if command -v black >/dev/null 2>&1; then \
-		black src/; \
+	@echo "🎨 Formatting code with Ruff..."
+	@if command -v uv >/dev/null 2>&1; then \
+		uv run ruff format src/; \
 	else \
-		echo "black not installed. Run 'make dev-install' first."; \
+		echo "uv not available. Install uv or run 'ruff format src/' directly."; \
 	fi
 
 check:
-	@echo "🔍 Running type checking..."
-	@if command -v mypy >/dev/null 2>&1; then \
-		mypy src/ --ignore-missing-imports; \
+	@if [ "$(filter fix,$(MAKECMDGOALS))" ]; then \
+		echo "🔧 Running type checking with auto-fixes..."; \
+		echo "ℹ️  Note: MyPy doesn't support auto-fixing, running normal type check"; \
 	else \
-		echo "mypy not installed. Run 'make dev-install' first."; \
+		echo "🔍 Running type checking..."; \
 	fi
+	@if command -v uv >/dev/null 2>&1; then \
+		uv run mypy src/ --ignore-missing-imports; \
+	else \
+		echo "uv not available. Install uv or run 'mypy src/' directly."; \
+	fi
+
+quality:
+	@if [ "$(filter fix,$(MAKECMDGOALS))" ]; then \
+		echo "🔧 Running all code quality checks with auto-fixes..."; \
+		$(MAKE) lint fix; \
+		$(MAKE) format; \
+		$(MAKE) check; \
+	else \
+		echo "🔍 Running all code quality checks..."; \
+		$(MAKE) lint; \
+		$(MAKE) format; \
+		$(MAKE) check; \
+	fi
+	@echo "✅ All code quality checks completed!"
 
 # Example and demo targets
 run-example:

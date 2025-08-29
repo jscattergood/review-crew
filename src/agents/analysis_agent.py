@@ -8,14 +8,14 @@ This agent can perform different types of analysis based on the loaded persona:
 - Other analysis types as defined by analyzer personas
 """
 
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
-
-from .base_agent import BaseAgent
-from ..config.persona_loader import PersonaConfig
+from typing import Any
 
 import tiktoken
+
+from ..config.persona_loader import PersonaConfig
+from .base_agent import BaseAgent
 
 
 @dataclass
@@ -23,10 +23,10 @@ class AnalysisResult:
     """Result from analysis of multiple agent reviews."""
 
     synthesis: str
-    personal_statement_summary: Optional[str] = None
-    key_themes: List[str] = None
-    conflicting_feedback: List[Dict[str, Any]] = None
-    priority_recommendations: List[str] = None
+    personal_statement_summary: str | None = None
+    key_themes: list[str] = None
+    conflicting_feedback: list[dict[str, Any]] = None
+    priority_recommendations: list[str] = None
     timestamp: datetime = None
 
     def __post_init__(self):
@@ -47,7 +47,7 @@ class AnalysisAgent(BaseAgent):
         self,
         persona: PersonaConfig,
         model_provider: str = "bedrock",
-        model_config: Optional[Dict[str, Any]] = None,
+        model_config: dict[str, Any] | None = None,
     ):
         """Initialize the analysis agent.
 
@@ -60,7 +60,7 @@ class AnalysisAgent(BaseAgent):
         super().__init__(persona, model_provider, model_config)
 
     async def analyze(
-        self, reviews: List[Dict[str, Any]], max_context_length: Optional[int] = None
+        self, reviews: list[dict[str, Any]], max_context_length: int | None = None
     ) -> AnalysisResult:
         """Perform analysis on multiple agent reviews with optional chunking.
 
@@ -92,7 +92,7 @@ class AnalysisAgent(BaseAgent):
         # Parse the structured response
         return self._parse_meta_analysis_response(synthesis)
 
-    def _format_reviews_for_analysis(self, reviews: List[Dict[str, Any]]) -> str:
+    def _format_reviews_for_analysis(self, reviews: list[dict[str, Any]]) -> str:
         """Format individual reviews for meta-analysis."""
         formatted = []
 
@@ -114,7 +114,7 @@ class AnalysisAgent(BaseAgent):
         return "\n".join(formatted)
 
     def _should_chunk(
-        self, reviews: List[Dict[str, Any]], max_context_length: int
+        self, reviews: list[dict[str, Any]], max_context_length: int
     ) -> bool:
         """Determine if chunking is needed based on actual token count.
 
@@ -139,7 +139,7 @@ class AnalysisAgent(BaseAgent):
         return total_tokens > max_context_length
 
     async def _analyze_with_chunking(
-        self, reviews: List[Dict[str, Any]], max_context_length: int
+        self, reviews: list[dict[str, Any]], max_context_length: int
     ) -> AnalysisResult:
         """Perform analysis using chunking strategy for large review sets.
 
@@ -209,7 +209,7 @@ class AnalysisAgent(BaseAgent):
             priority_recommendations=priority_recommendations,
         )
 
-    def _extract_section(self, text: str, section_header: str) -> Optional[str]:
+    def _extract_section(self, text: str, section_header: str) -> str | None:
         """Extract a specific section from the structured response."""
         import re
 
@@ -227,7 +227,7 @@ class AnalysisAgent(BaseAgent):
 
         return None
 
-    def _extract_list_section(self, text: str, section_header: str) -> List[str]:
+    def _extract_list_section(self, text: str, section_header: str) -> list[str]:
         """Extract a list section from the structured response."""
         section_content = self._extract_section(text, section_header)
 
@@ -248,7 +248,7 @@ class AnalysisAgent(BaseAgent):
 
         return cleaned_items[:5]  # Return top 5 items
 
-    def get_info(self) -> Dict[str, Any]:
+    def get_info(self) -> dict[str, Any]:
         """Get information about this analysis agent."""
         return {
             "name": self.persona.name,
@@ -264,8 +264,8 @@ class AnalysisAgent(BaseAgent):
         }
 
     def _create_review_chunks(
-        self, reviews: List[Dict[str, Any]], max_context_length: int
-    ) -> List[List[Dict[str, Any]]]:
+        self, reviews: list[dict[str, Any]], max_context_length: int
+    ) -> list[list[dict[str, Any]]]:
         """Create chunks of reviews that fit within context limits.
 
         Args:
@@ -334,7 +334,7 @@ Analyze ONLY the reviews in this chunk and provide:
 Focus on extracting the key insights from this specific set of reviews. Keep your analysis concise and focused on the most important points."""
 
     async def _synthesize_chunk_analyses(
-        self, chunk_analyses: List[str]
+        self, chunk_analyses: list[str]
     ) -> AnalysisResult:
         """Synthesize multiple chunk analyses into a final result.
 
@@ -345,7 +345,7 @@ Focus on extracting the key insights from this specific set of reviews. Keep you
             Final AnalysisResult
         """
         # Create a synthesis prompt
-        synthesis_prompt = f"""You are synthesizing analysis results from multiple chunks of reviews.
+        synthesis_prompt = """You are synthesizing analysis results from multiple chunks of reviews.
 
 ## Chunk Analyses:
 """
@@ -384,7 +384,7 @@ Focus on creating a comprehensive synthesis that captures the full scope of all 
         # Parse the final synthesis
         return self._parse_meta_analysis_response(synthesis)
 
-    def _format_single_review_for_analysis(self, review: Dict[str, Any]) -> str:
+    def _format_single_review_for_analysis(self, review: dict[str, Any]) -> str:
         """Format a single review for analysis (used in chunking)."""
         agent_name = review.get("agent_name", "Unknown Agent")
         agent_role = review.get("agent_role", "Unknown Role")
@@ -422,8 +422,9 @@ Focus on creating a comprehensive synthesis that captures the full scope of all 
             MultiAgentResult with analysis results
         """
         import time
-        from strands.multiagent.base import MultiAgentResult, NodeResult, Status
+
         from strands.agent.agent_result import AgentResult
+        from strands.multiagent.base import MultiAgentResult, NodeResult, Status
         from strands.telemetry.metrics import EventLoopMetrics
         from strands.types.content import ContentBlock, Message
 

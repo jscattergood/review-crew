@@ -5,15 +5,14 @@ This module provides utilities to convert Strands MultiAgentResult back to
 ConversationResult format for backward compatibility with existing code.
 """
 
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from typing import Any
 
 from strands.multiagent.base import MultiAgentResult, Status
 
-from .data_models import ConversationResult, ReviewResult
 from .analysis_agent import AnalysisResult
 from .context_agent import ContextResult
-from .document_processor_node import DocumentProcessorResult
+from .data_models import ConversationResult, ReviewResult
 
 
 class ResultConverter:
@@ -26,7 +25,7 @@ class ResultConverter:
     def convert_to_conversation_result(
         self,
         graph_result: MultiAgentResult,
-        original_content: Optional[str] = None,
+        original_content: str | None = None,
     ) -> ConversationResult:
         """Convert MultiAgentResult to ConversationResult.
 
@@ -57,7 +56,7 @@ class ResultConverter:
             analysis_errors=analysis_errors,
         )
 
-    def _extract_reviews(self, graph_result: MultiAgentResult) -> List[ReviewResult]:
+    def _extract_reviews(self, graph_result: MultiAgentResult) -> list[ReviewResult]:
         """Extract review results from graph execution.
 
         Args:
@@ -109,7 +108,7 @@ class ResultConverter:
 
     def _extract_context_results(
         self, graph_result: MultiAgentResult
-    ) -> List[ContextResult]:
+    ) -> list[ContextResult]:
         """Extract context results from graph execution.
 
         Args:
@@ -151,7 +150,7 @@ class ResultConverter:
 
     def _extract_analysis_results(
         self, graph_result: MultiAgentResult
-    ) -> List[AnalysisResult]:
+    ) -> list[AnalysisResult]:
         """Extract analysis results from graph execution.
 
         Args:
@@ -191,7 +190,7 @@ class ResultConverter:
 
         return analysis_results
 
-    def _extract_analysis_errors(self, graph_result: MultiAgentResult) -> List[str]:
+    def _extract_analysis_errors(self, graph_result: MultiAgentResult) -> list[str]:
         """Extract analysis errors from graph execution.
 
         Args:
@@ -212,7 +211,7 @@ class ResultConverter:
         return errors
 
     def _determine_content(
-        self, graph_result: MultiAgentResult, original_content: Optional[str]
+        self, graph_result: MultiAgentResult, original_content: str | None
     ) -> str:
         """Determine the content field for ConversationResult.
 
@@ -294,8 +293,8 @@ class ResultConverter:
 
         # Try to parse as JSON/dict structure
         try:
-            import json
             import ast
+            import json
 
             parsed = None
 
@@ -327,7 +326,7 @@ class ResultConverter:
             # If any parsing fails, it's not a JSON structure we can handle
             return None
 
-    def _parse_context_response(self, response: str) -> Optional[ContextResult]:
+    def _parse_context_response(self, response: str) -> ContextResult | None:
         """Parse context agent response into ContextResult.
 
         Args:
@@ -348,7 +347,7 @@ class ResultConverter:
         except Exception:
             return None
 
-    def _parse_analysis_response(self, response: str) -> Optional[AnalysisResult]:
+    def _parse_analysis_response(self, response: str) -> AnalysisResult | None:
         """Parse analysis agent response into AnalysisResult.
 
         Args:
@@ -366,7 +365,7 @@ class ResultConverter:
         except Exception:
             return None
 
-    def get_execution_summary(self, graph_result: MultiAgentResult) -> Dict[str, Any]:
+    def get_execution_summary(self, graph_result: MultiAgentResult) -> dict[str, Any]:
         """Get a summary of graph execution results.
 
         Args:
@@ -413,7 +412,7 @@ class ResultConverter:
 
     def extract_document_info(
         self, graph_result: MultiAgentResult
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Extract document processing information from graph result.
 
         Args:
@@ -449,7 +448,7 @@ class ResultConverter:
 # Convenience function for easy usage
 def convert_graph_result_to_conversation(
     graph_result: MultiAgentResult,
-    original_content: Optional[str] = None,
+    original_content: str | None = None,
 ) -> ConversationResult:
     """Convert a Strands graph result to ConversationResult format.
 

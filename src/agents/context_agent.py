@@ -6,12 +6,12 @@ formatting it according to a contextualizer persona for use by review agents.
 The agent is completely abstract and domain-agnostic.
 """
 
-from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
+from ..config.persona_loader import PersonaConfig
 from .base_agent import BaseAgent
-from ..config.persona_loader import PersonaConfig, PersonaLoader
 
 
 @dataclass
@@ -34,7 +34,7 @@ class ContextAgent(BaseAgent):
         self,
         persona: PersonaConfig,
         model_provider: str = "bedrock",
-        model_config: Optional[Dict[str, Any]] = None,
+        model_config: dict[str, Any] | None = None,
     ):
         """Initialize the context agent.
 
@@ -46,7 +46,7 @@ class ContextAgent(BaseAgent):
         # Initialize the base agent
         super().__init__(persona, model_provider, model_config)
 
-    async def process_context(self, context_data: str) -> Optional[ContextResult]:
+    async def process_context(self, context_data: str) -> ContextResult | None:
         """Process and format contextual information using the contextualizer persona.
 
         Args:
@@ -111,7 +111,7 @@ class ContextAgent(BaseAgent):
             formatted_context=formatted_context, context_summary=context_summary
         )
 
-    def _extract_section(self, text: str, section_header: str) -> Optional[str]:
+    def _extract_section(self, text: str, section_header: str) -> str | None:
         """Extract a specific section from the structured response."""
         import re
 
@@ -140,7 +140,7 @@ class ContextAgent(BaseAgent):
 ---
 """
 
-    def get_info(self) -> Dict[str, Any]:
+    def get_info(self) -> dict[str, Any]:
         """Get information about this context agent."""
         return {
             "name": self.persona.name,
@@ -164,8 +164,9 @@ class ContextAgent(BaseAgent):
             MultiAgentResult with context results
         """
         import time
-        from strands.multiagent.base import MultiAgentResult, NodeResult, Status
+
         from strands.agent.agent_result import AgentResult
+        from strands.multiagent.base import MultiAgentResult, NodeResult, Status
         from strands.telemetry.metrics import EventLoopMetrics
         from strands.types.content import ContentBlock, Message
 

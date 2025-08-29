@@ -10,10 +10,11 @@ Environment Variables:
 """
 
 import os
-import yaml
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Union
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import yaml
 
 # Try to load python-dotenv if available
 try:
@@ -33,7 +34,7 @@ class PersonaConfig:
     goal: str
     backstory: str
     prompt_template: str
-    model_config: Dict[str, Any]
+    model_config: dict[str, Any]
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -53,7 +54,7 @@ class PersonaLoader:
     """Loads and manages persona configurations."""
 
     def __init__(
-        self, project_root: Optional[Path] = None, personas_dir: Optional[Path] = None
+        self, project_root: Path | None = None, personas_dir: Path | None = None
     ):
         """Initialize the persona loader.
 
@@ -76,7 +77,7 @@ class PersonaLoader:
             # Default to examples for testing - production should use .env file
             self.personas_dir = self.project_root / "examples" / "personas"
 
-    def get_config_info(self) -> Dict[str, Any]:
+    def get_config_info(self) -> dict[str, Any]:
         """Get current configuration information.
 
         Returns:
@@ -91,7 +92,7 @@ class PersonaLoader:
             "is_default_examples": not bool(os.getenv("REVIEW_CREW_PERSONAS_DIR")),
         }
 
-    def load_persona(self, filepath: Union[str, Path]) -> PersonaConfig:
+    def load_persona(self, filepath: str | Path) -> PersonaConfig:
         """Load a single persona configuration from a YAML file.
 
         Args:
@@ -113,10 +114,10 @@ class PersonaLoader:
             raise FileNotFoundError(f"Persona file not found: {filepath}")
 
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
         except yaml.YAMLError as e:
-            raise yaml.YAMLError(f"Invalid YAML in {filepath}: {e}")
+            raise yaml.YAMLError(f"Invalid YAML in {filepath}: {e}") from e
 
         # Provide defaults for optional fields
         data.setdefault("model_config", {})
@@ -126,9 +127,9 @@ class PersonaLoader:
         try:
             return PersonaConfig(**data)
         except TypeError as e:
-            raise ValueError(f"Invalid persona configuration in {filepath}: {e}")
+            raise ValueError(f"Invalid persona configuration in {filepath}: {e}") from e
 
-    def load_reviewer_personas(self) -> List[PersonaConfig]:
+    def load_reviewer_personas(self) -> list[PersonaConfig]:
         """Load reviewer persona configurations from the reviewers directory.
 
         Returns:
@@ -168,7 +169,7 @@ class PersonaLoader:
 
         return personas
 
-    def load_analyzer_personas(self) -> List[PersonaConfig]:
+    def load_analyzer_personas(self) -> list[PersonaConfig]:
         """Load analyzer persona configurations.
 
         Returns:
@@ -180,7 +181,7 @@ class PersonaLoader:
         else:
             return []
 
-    def load_contextualizer_personas(self) -> List[PersonaConfig]:
+    def load_contextualizer_personas(self) -> list[PersonaConfig]:
         """Load contextualizer persona configurations.
 
         Returns:
@@ -192,7 +193,7 @@ class PersonaLoader:
         else:
             return []
 
-    def load_all_persona_types(self) -> Dict[str, List[PersonaConfig]]:
+    def load_all_persona_types(self) -> dict[str, list[PersonaConfig]]:
         """Load all persona types (reviewers, analyzers, and contextualizers) separately.
 
         Returns:
@@ -204,7 +205,7 @@ class PersonaLoader:
             "contextualizers": self.load_contextualizer_personas(),
         }
 
-    def _load_personas_from_dir(self, directory: Path) -> List[PersonaConfig]:
+    def _load_personas_from_dir(self, directory: Path) -> list[PersonaConfig]:
         """Load all persona configurations from a directory and its subdirectories.
 
         Args:
@@ -230,7 +231,7 @@ class PersonaLoader:
 
         return personas
 
-    def _load_personas_from_single_dir(self, directory: Path) -> List[PersonaConfig]:
+    def _load_personas_from_single_dir(self, directory: Path) -> list[PersonaConfig]:
         """Load persona configurations from a single directory (no subdirectories).
 
         Args:
@@ -260,7 +261,7 @@ class PersonaLoader:
 
         return personas
 
-    def get_persona_by_name(self, name: str) -> Optional[PersonaConfig]:
+    def get_persona_by_name(self, name: str) -> PersonaConfig | None:
         """Get a specific persona by name.
 
         Args:
@@ -275,7 +276,7 @@ class PersonaLoader:
                 return persona
         return None
 
-    def list_available_personas(self) -> List[str]:
+    def list_available_personas(self) -> list[str]:
         """Get a list of all available persona names.
 
         Returns:
@@ -285,8 +286,8 @@ class PersonaLoader:
         return [persona.name for persona in personas]
 
     def load_reviewer_personas_by_category(
-        self, categories: List[str]
-    ) -> List[PersonaConfig]:
+        self, categories: list[str]
+    ) -> list[PersonaConfig]:
         """Load reviewer personas from specific categories (sub-folders).
 
         Args:
@@ -311,7 +312,7 @@ class PersonaLoader:
 
         return personas
 
-    def load_reviewer_personas_by_names(self, names: List[str]) -> List[PersonaConfig]:
+    def load_reviewer_personas_by_names(self, names: list[str]) -> list[PersonaConfig]:
         """Load specific reviewer personas by name.
 
         Args:
@@ -333,8 +334,8 @@ class PersonaLoader:
         return selected_personas
 
     def load_reviewers_from_manifest(
-        self, manifest_config: Dict[str, Any]
-    ) -> List[PersonaConfig]:
+        self, manifest_config: dict[str, Any]
+    ) -> list[PersonaConfig]:
         """Load reviewers based on manifest configuration.
 
         Args:
@@ -370,8 +371,8 @@ class PersonaLoader:
         return unique_personas
 
     def load_contextualizer_personas_by_names(
-        self, names: List[str]
-    ) -> List[PersonaConfig]:
+        self, names: list[str]
+    ) -> list[PersonaConfig]:
         """Load specific contextualizer personas by name.
 
         Args:
@@ -396,8 +397,8 @@ class PersonaLoader:
         return selected_contextualizers
 
     def load_contextualizer_personas_by_category(
-        self, categories: List[str]
-    ) -> List[PersonaConfig]:
+        self, categories: list[str]
+    ) -> list[PersonaConfig]:
         """Load contextualizer personas from specific categories (sub-folders).
 
         Args:
@@ -423,8 +424,8 @@ class PersonaLoader:
         return personas
 
     def load_contextualizers_from_manifest(
-        self, manifest_config: Dict[str, Any]
-    ) -> List[PersonaConfig]:
+        self, manifest_config: dict[str, Any]
+    ) -> list[PersonaConfig]:
         """Load contextualizers based on manifest configuration.
 
         Args:
@@ -459,7 +460,7 @@ class PersonaLoader:
 
         return unique_personas
 
-    def load_analyzer_personas_by_names(self, names: List[str]) -> List[PersonaConfig]:
+    def load_analyzer_personas_by_names(self, names: list[str]) -> list[PersonaConfig]:
         """Load analyzer personas by specific names.
 
         Args:
@@ -482,8 +483,8 @@ class PersonaLoader:
         return selected_personas
 
     def load_analyzer_personas_by_category(
-        self, categories: List[str]
-    ) -> List[PersonaConfig]:
+        self, categories: list[str]
+    ) -> list[PersonaConfig]:
         """Load analyzer personas by categories.
 
         Args:
@@ -504,8 +505,8 @@ class PersonaLoader:
         return personas
 
     def load_analyzers_from_manifest(
-        self, manifest_config: Dict[str, Any]
-    ) -> List[PersonaConfig]:
+        self, manifest_config: dict[str, Any]
+    ) -> list[PersonaConfig]:
         """Load analyzers based on manifest configuration.
 
         Args:

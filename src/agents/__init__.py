@@ -1,7 +1,7 @@
 """Agent implementations for Review-Crew."""
 
 # Import core data structures that don't require external dependencies
-from .data_models import ReviewResult, ConversationResult
+from .data_models import ConversationResult, ReviewResult
 
 # Import analysis components
 try:
@@ -14,9 +14,9 @@ except ImportError:
 # Import main components that may require external dependencies
 try:
     from .base_agent import BaseAgent
-    from .review_agent import ReviewAgent
     from .context_agent import ContextAgent
     from .conversation_manager import ConversationManager
+    from .review_agent import ReviewAgent
 
     _main_components_available = True
 except ImportError as e:

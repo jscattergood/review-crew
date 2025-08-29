@@ -5,17 +5,17 @@ This module provides the ReviewGraphBuilder class that constructs Strands graphs
 using our refactored agents that directly inherit from MultiAgentBase.
 """
 
-from typing import List, Dict, Any, Optional
 from pathlib import Path
+from typing import Any
 
 from strands.multiagent import GraphBuilder
 from strands.multiagent.base import MultiAgentResult
 
+from ..config.persona_loader import PersonaConfig, PersonaLoader
+from .analysis_agent import AnalysisAgent
+from .context_agent import ContextAgent
 from .document_processor_node import DocumentProcessorNode
 from .review_agent import ReviewAgent
-from .context_agent import ContextAgent
-from .analysis_agent import AnalysisAgent
-from ..config.persona_loader import PersonaLoader, PersonaConfig
 
 
 class ReviewGraphBuilder:
@@ -27,9 +27,9 @@ class ReviewGraphBuilder:
 
     def __init__(
         self,
-        persona_loader: Optional[PersonaLoader] = None,
+        persona_loader: PersonaLoader | None = None,
         model_provider: str = "bedrock",
-        model_config: Optional[Dict[str, Any]] = None,
+        model_config: dict[str, Any] | None = None,
         enable_analysis: bool = True,
     ):
         """Initialize the review graph builder.
@@ -50,7 +50,7 @@ class ReviewGraphBuilder:
         self.context_agents = self._load_context_agents()
         self.analysis_agents = self._load_analysis_agents() if enable_analysis else []
 
-    def _load_review_agents(self) -> List[ReviewAgent]:
+    def _load_review_agents(self) -> list[ReviewAgent]:
         """Load all available review agents."""
         try:
             personas = self.persona_loader.load_reviewer_personas()
@@ -68,7 +68,7 @@ class ReviewGraphBuilder:
             print(f"❌ Error loading review agents: {e}")
             return []
 
-    def _load_context_agents(self) -> List[ContextAgent]:
+    def _load_context_agents(self) -> list[ContextAgent]:
         """Load all available context agents."""
         try:
             personas = self.persona_loader.load_contextualizer_personas()
@@ -86,7 +86,7 @@ class ReviewGraphBuilder:
             print(f"❌ Error loading context agents: {e}")
             return []
 
-    def _load_analysis_agents(self) -> List[AnalysisAgent]:
+    def _load_analysis_agents(self) -> list[AnalysisAgent]:
         """Load all available analysis agents."""
         try:
             personas = self.persona_loader.load_analyzer_personas()
@@ -106,9 +106,9 @@ class ReviewGraphBuilder:
 
     def build_standard_review_graph(
         self,
-        selected_reviewers: Optional[List[str]] = None,
-        selected_contextualizers: Optional[List[str]] = None,
-        selected_analyzers: Optional[List[str]] = None,
+        selected_reviewers: list[str] | None = None,
+        selected_contextualizers: list[str] | None = None,
+        selected_analyzers: list[str] | None = None,
     ):
         """Build a standard review graph with document processing, context, reviews, and analysis.
 
@@ -172,8 +172,8 @@ class ReviewGraphBuilder:
 
     def build_manifest_driven_graph(
         self,
-        manifest_config: Dict[str, Any],
-        directory_path: Optional[Path] = None,
+        manifest_config: dict[str, Any],
+        directory_path: Path | None = None,
     ):
         """Build a review graph based on manifest configuration.
 
@@ -266,8 +266,8 @@ class ReviewGraphBuilder:
         return builder.build()
 
     def _filter_review_agents(
-        self, selected_names: Optional[List[str]]
-    ) -> List[ReviewAgent]:
+        self, selected_names: list[str] | None
+    ) -> list[ReviewAgent]:
         """Filter review agents by name selection.
 
         Args:
@@ -296,8 +296,8 @@ class ReviewGraphBuilder:
         return filtered
 
     def _filter_context_agents(
-        self, selected_names: Optional[List[str]]
-    ) -> List[ContextAgent]:
+        self, selected_names: list[str] | None
+    ) -> list[ContextAgent]:
         """Filter context agents by name selection.
 
         Args:
@@ -326,8 +326,8 @@ class ReviewGraphBuilder:
         return filtered
 
     def _filter_analysis_agents(
-        self, selected_names: Optional[List[str]]
-    ) -> List[AnalysisAgent]:
+        self, selected_names: list[str] | None
+    ) -> list[AnalysisAgent]:
         """Filter analysis agents by name selection.
 
         Args:
@@ -356,8 +356,8 @@ class ReviewGraphBuilder:
         return filtered
 
     def _load_contextualizers_from_manifest(
-        self, review_config: Dict[str, Any]
-    ) -> List[ContextAgent]:
+        self, review_config: dict[str, Any]
+    ) -> list[ContextAgent]:
         """Load contextualizers based on manifest configuration.
 
         Args:
@@ -384,8 +384,8 @@ class ReviewGraphBuilder:
             return self.context_agents  # Fallback to all available
 
     def _load_reviewers_from_manifest(
-        self, review_config: Dict[str, Any]
-    ) -> List[ReviewAgent]:
+        self, review_config: dict[str, Any]
+    ) -> list[ReviewAgent]:
         """Load reviewers based on manifest configuration.
 
         Args:
@@ -412,8 +412,8 @@ class ReviewGraphBuilder:
             return self.review_agents  # Fallback to all available
 
     def _load_analyzers_from_manifest(
-        self, review_config: Dict[str, Any]
-    ) -> List[AnalysisAgent]:
+        self, review_config: dict[str, Any]
+    ) -> list[AnalysisAgent]:
         """Load analyzers based on manifest configuration.
 
         Args:
@@ -443,7 +443,7 @@ class ReviewGraphBuilder:
             return self.analysis_agents  # Fallback to all available
 
     def _apply_focus_to_reviewer(
-        self, reviewer: ReviewAgent, focus_config: Dict[str, Any]
+        self, reviewer: ReviewAgent, focus_config: dict[str, Any]
     ) -> ReviewAgent:
         """Apply focus instructions to a reviewer persona.
 
@@ -483,7 +483,7 @@ class ReviewGraphBuilder:
             model_config_override=self.model_config,
         )
 
-    def get_available_agents_info(self) -> Dict[str, List[Dict[str, Any]]]:
+    def get_available_agents_info(self) -> dict[str, list[dict[str, Any]]]:
         """Get information about all available agents.
 
         Returns:

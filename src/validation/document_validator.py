@@ -6,10 +6,10 @@ including format validation, content quality checks, and metadata extraction.
 """
 
 import re
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
 
 class ValidationLevel(Enum):
@@ -26,8 +26,8 @@ class ValidationResult:
 
     level: ValidationLevel
     message: str
-    location: Optional[str] = None
-    suggestion: Optional[str] = None
+    location: str | None = None
+    suggestion: str | None = None
 
 
 @dataclass
@@ -38,7 +38,7 @@ class DocumentMetadata:
     character_count: int
     paragraph_count: int
     sentence_count: int
-    reading_level: Optional[float] = None
+    reading_level: float | None = None
     detected_language: str = "en"
     format_type: str = "text"
 
@@ -46,7 +46,7 @@ class DocumentMetadata:
 class DocumentValidator:
     """Comprehensive document validation and pre-processing."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         """Initialize validator with configuration.
 
         Args:
@@ -67,7 +67,7 @@ class DocumentValidator:
 
     def validate_document(
         self, file_path: Path
-    ) -> Tuple[List[ValidationResult], DocumentMetadata]:
+    ) -> tuple[list[ValidationResult], DocumentMetadata]:
         """Validate a document file comprehensively.
 
         Args:
@@ -123,8 +123,8 @@ class DocumentValidator:
         return results, metadata
 
     def validate_document_collection(
-        self, directory_path: Path, manifest_config: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Tuple[List[ValidationResult], DocumentMetadata]]:
+        self, directory_path: Path, manifest_config: dict[str, Any] | None = None
+    ) -> dict[str, tuple[list[ValidationResult], DocumentMetadata]]:
         """Validate a collection of documents.
 
         Args:
@@ -158,11 +158,11 @@ class DocumentValidator:
         print(f"Validation results: {results}")
         return results
 
-    def _validate_file_format(self, file_path: Path) -> List[ValidationResult]:
+    def _validate_file_format(self, file_path: Path) -> list[ValidationResult]:
         """Validate file format and extension."""
         results = []
 
-        if not file_path.suffix.lower() in self.rules["allowed_formats"]:
+        if file_path.suffix.lower() not in self.rules["allowed_formats"]:
             results.append(
                 ValidationResult(
                     ValidationLevel.WARNING,
@@ -178,13 +178,13 @@ class DocumentValidator:
         encoding = self.rules["encoding"]
 
         try:
-            with open(file_path, "r", encoding=encoding) as f:
+            with open(file_path, encoding=encoding) as f:
                 return f.read()
         except UnicodeDecodeError:
             # Try alternative encodings
             for alt_encoding in ["utf-8", "latin-1", "cp1252"]:
                 try:
-                    with open(file_path, "r", encoding=alt_encoding) as f:
+                    with open(file_path, encoding=alt_encoding) as f:
                         return f.read()
                 except UnicodeDecodeError:
                     continue
@@ -213,7 +213,7 @@ class DocumentValidator:
 
     def _validate_content(
         self, content: str, metadata: DocumentMetadata
-    ) -> List[ValidationResult]:
+    ) -> list[ValidationResult]:
         """Validate document content against rules."""
         results = []
 
@@ -247,7 +247,7 @@ class DocumentValidator:
 
         return results
 
-    def _validate_structure(self, content: str) -> List[ValidationResult]:
+    def _validate_structure(self, content: str) -> list[ValidationResult]:
         """Validate document structure and formatting."""
         results = []
 
@@ -271,8 +271,8 @@ class DocumentValidator:
                 results.append(
                     ValidationResult(
                         ValidationLevel.INFO,
-                        f"Paragraph {i+1} is very long ({words_in_paragraph} words)",
-                        location=f"Paragraph {i+1}",
+                        f"Paragraph {i + 1} is very long ({words_in_paragraph} words)",
+                        location=f"Paragraph {i + 1}",
                         suggestion="Consider breaking long paragraphs into smaller ones for better readability",
                     )
                 )
@@ -281,7 +281,7 @@ class DocumentValidator:
 
     def _validate_quality(
         self, content: str, metadata: DocumentMetadata
-    ) -> List[ValidationResult]:
+    ) -> list[ValidationResult]:
         """Validate content quality indicators."""
         results = []
 
@@ -305,7 +305,7 @@ class DocumentValidator:
 
         return results
 
-    def _check_repetition(self, content: str) -> List[ValidationResult]:
+    def _check_repetition(self, content: str) -> list[ValidationResult]:
         """Check for excessive repetition of words or phrases."""
         results = []
 
@@ -330,7 +330,7 @@ class DocumentValidator:
 
         return results
 
-    def _check_formatting(self, content: str) -> List[ValidationResult]:
+    def _check_formatting(self, content: str) -> list[ValidationResult]:
         """Check for common formatting issues."""
         results = []
 
@@ -401,8 +401,8 @@ class DocumentValidator:
         return syllable_count
 
     def _get_expected_documents(
-        self, manifest_config: Optional[Dict[str, Any]]
-    ) -> List[str]:
+        self, manifest_config: dict[str, Any] | None
+    ) -> list[str]:
         """Extract expected document list from manifest."""
         if not manifest_config:
             return []
@@ -419,8 +419,8 @@ class DocumentValidator:
         return expected
 
     def _check_missing_documents(
-        self, directory_path: Path, expected_docs: List[str]
-    ) -> List[ValidationResult]:
+        self, directory_path: Path, expected_docs: list[str]
+    ) -> list[ValidationResult]:
         """Check for missing expected documents."""
         results = []
         existing_files = {f.name for f in directory_path.iterdir() if f.is_file()}
@@ -443,7 +443,7 @@ class DocumentValidator:
 
     def generate_validation_report(
         self,
-        validation_results: Dict[str, Tuple[List[ValidationResult], DocumentMetadata]],
+        validation_results: dict[str, tuple[list[ValidationResult], DocumentMetadata]],
     ) -> str:
         """Generate a human-readable validation report."""
         report_lines = []

@@ -5,21 +5,17 @@ This module manages conversations between multiple review agents,
 collecting and organizing their feedback using Strands Graph architecture.
 """
 
-import asyncio
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
-from .review_agent import ReviewAgent
-from .analysis_agent import AnalysisAgent, AnalysisResult
+from ..config.persona_loader import PersonaLoader
+from .analysis_agent import AnalysisAgent
 from .context_agent import ContextAgent, ContextResult
-from .data_models import ReviewResult, ConversationResult
-from .review_graph_builder import ReviewGraphBuilder
+from .data_models import ConversationResult
 from .result_converter import ResultConverter
-from ..config.persona_loader import PersonaLoader, PersonaConfig
-
-import tiktoken
+from .review_agent import ReviewAgent
+from .review_graph_builder import ReviewGraphBuilder
 
 
 class ConversationManager:
@@ -27,9 +23,9 @@ class ConversationManager:
 
     def __init__(
         self,
-        persona_loader: Optional[PersonaLoader] = None,
+        persona_loader: PersonaLoader | None = None,
         model_provider: str = "bedrock",
-        model_config: Optional[Dict[str, Any]] = None,
+        model_config: dict[str, Any] | None = None,
         enable_analysis: bool = True,
     ):
         """Initialize the conversation manager.
@@ -55,11 +51,11 @@ class ConversationManager:
         self.result_converter = ResultConverter()
 
         # Keep legacy agent lists for backward compatibility
-        self.agents: List[ReviewAgent] = self.graph_builder.review_agents
-        self.context_agents: List[ContextAgent] = self.graph_builder.context_agents
-        self.analysis_agents: List[AnalysisAgent] = self.graph_builder.analysis_agents
+        self.agents: list[ReviewAgent] = self.graph_builder.review_agents
+        self.context_agents: list[ContextAgent] = self.graph_builder.context_agents
+        self.analysis_agents: list[AnalysisAgent] = self.graph_builder.analysis_agents
 
-    def get_available_agents(self) -> List[Dict[str, Any]]:
+    def get_available_agents(self) -> list[dict[str, Any]]:
         """Get information about available agents.
 
         Returns:
@@ -67,7 +63,7 @@ class ConversationManager:
         """
         return [agent.get_info() for agent in self.agents]
 
-    def get_available_contextualizers(self) -> List[Dict[str, Any]]:
+    def get_available_contextualizers(self) -> list[dict[str, Any]]:
         """Get information about available contextualizer agents.
 
         Returns:
@@ -75,7 +71,7 @@ class ConversationManager:
         """
         return [agent.get_info() for agent in self.context_agents]
 
-    def get_available_analyzers(self) -> List[Dict[str, Any]]:
+    def get_available_analyzers(self) -> list[dict[str, Any]]:
         """Get information about available analyzer agents.
 
         Returns:
@@ -86,8 +82,8 @@ class ConversationManager:
     async def run_review(
         self,
         content: str,
-        context_data: Optional[str] = None,
-        selected_agents: Optional[List[str]] = None,
+        context_data: str | None = None,
+        selected_agents: list[str] | None = None,
     ) -> ConversationResult:
         """Run a review with selected agents using graph-based execution.
 
@@ -114,7 +110,7 @@ class ConversationManager:
     # ========================================
 
     async def _run_graph_based_review(
-        self, content_path: Path, selected_agents: Optional[List[str]] = None
+        self, content_path: Path, selected_agents: list[str] | None = None
     ) -> ConversationResult:
         """Run review using graph-based execution.
 
@@ -161,7 +157,7 @@ class ConversationManager:
             return await self._fallback_to_legacy_review(content_path, selected_agents)
 
     async def _run_simple_graph_review(
-        self, content: str, selected_agents: Optional[List[str]] = None
+        self, content: str, selected_agents: list[str] | None = None
     ) -> ConversationResult:
         """Run review using simple graph for direct content input.
 
@@ -204,7 +200,7 @@ class ConversationManager:
     # Legacy Support Methods
     # ========================================
 
-    def _load_manifest(self, manifest_path: Path) -> Dict[str, Any]:
+    def _load_manifest(self, manifest_path: Path) -> dict[str, Any]:
         """Load and parse manifest file.
 
         Args:
@@ -216,7 +212,7 @@ class ConversationManager:
         import yaml
 
         try:
-            with open(manifest_path, "r", encoding="utf-8") as f:
+            with open(manifest_path, encoding="utf-8") as f:
                 manifest = yaml.safe_load(f)
             return manifest
         except Exception as e:
@@ -228,7 +224,7 @@ class ConversationManager:
     # ========================================
 
     async def _fallback_to_legacy_review(
-        self, content_path: Path, selected_agents: Optional[List[str]] = None
+        self, content_path: Path, selected_agents: list[str] | None = None
     ) -> ConversationResult:
         """Fallback to legacy review implementation."""
         print("🔄 Falling back to legacy review implementation")
@@ -244,7 +240,7 @@ class ConversationManager:
         )
 
     async def _fallback_to_legacy_simple_review(
-        self, content: str, selected_agents: Optional[List[str]] = None
+        self, content: str, selected_agents: list[str] | None = None
     ) -> ConversationResult:
         """Fallback to legacy simple review implementation."""
         print("🔄 Falling back to legacy simple review implementation")
@@ -336,7 +332,7 @@ class ConversationManager:
             print(f"❌ Error loading analyzers: {e}")
             self.analysis_agents = []
 
-    def _filter_agents(self, selected_agents: Optional[List[str]]) -> List[ReviewAgent]:
+    def _filter_agents(self, selected_agents: list[str] | None) -> list[ReviewAgent]:
         """Filter agents based on selected agent names."""
         if not selected_agents:
             return self.agents
@@ -351,7 +347,7 @@ class ConversationManager:
         return filtered_agents
 
     def _prepare_content_for_review(
-        self, content: str, context_results: List[ContextResult]
+        self, content: str, context_results: list[ContextResult]
     ) -> str:
         """Prepare content for review by adding context if available."""
         if not context_results:

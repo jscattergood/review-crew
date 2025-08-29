@@ -5,9 +5,10 @@ This module wraps Strands Agent functionality with persona configurations
 to create specialized review agents.
 """
 
-from typing import Dict, Any, Optional
-from .base_agent import BaseAgent
+from typing import Any
+
 from ..config.persona_loader import PersonaConfig
+from .base_agent import BaseAgent
 
 
 class ReviewAgent(BaseAgent):
@@ -16,8 +17,8 @@ class ReviewAgent(BaseAgent):
     def __init__(
         self,
         persona: PersonaConfig,
-        model_provider: Optional[str] = None,
-        model_config_override: Optional[Dict[str, Any]] = None,
+        model_provider: str | None = None,
+        model_config_override: dict[str, Any] | None = None,
     ):
         """Initialize a review agent with a persona configuration.
 
@@ -59,8 +60,9 @@ class ReviewAgent(BaseAgent):
             MultiAgentResult with review results
         """
         import time
-        from strands.multiagent.base import MultiAgentResult, NodeResult, Status
+
         from strands.agent.agent_result import AgentResult
+        from strands.multiagent.base import MultiAgentResult, NodeResult, Status
         from strands.telemetry.metrics import EventLoopMetrics
         from strands.types.content import ContentBlock, Message
 

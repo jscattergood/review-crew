@@ -5,29 +5,29 @@ This module provides a custom Strands node that handles all document processing
 operations including loading, manifest processing, and validation.
 """
 
-import asyncio
 import json
-from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-from strands.multiagent.base import MultiAgentBase, NodeResult, Status, MultiAgentResult
 from strands.agent.agent_result import AgentResult
+from strands.multiagent.base import MultiAgentBase, MultiAgentResult, NodeResult, Status
 from strands.types.content import ContentBlock, Message
-from ..validation.document_validator import ValidationLevel, DocumentValidator
+
+from ..validation.document_validator import ValidationLevel
 
 
 @dataclass
 class DocumentProcessorResult:
     """Result from document processing operations."""
 
-    documents: List[Dict[str, str]]
+    documents: list[dict[str, str]]
     document_type: str  # "single" or "multi"
     compiled_content: str
-    manifest_config: Optional[Dict[str, Any]] = None
-    validation_results: Optional[Dict[str, Any]] = None
-    enhanced_manifest: Optional[Dict[str, Any]] = None
-    original_path: Optional[str] = None
+    manifest_config: dict[str, Any] | None = None
+    validation_results: dict[str, Any] | None = None
+    enhanced_manifest: dict[str, Any] | None = None
+    original_path: str | None = None
 
 
 class DocumentProcessorNode(MultiAgentBase):
@@ -49,7 +49,7 @@ class DocumentProcessorNode(MultiAgentBase):
         super().__init__()
         self.name = name
 
-    def __call__(self, task: str | List[ContentBlock], **kwargs) -> MultiAgentResult:
+    def __call__(self, task: str | list[ContentBlock], **kwargs) -> MultiAgentResult:
         """Process documents synchronously.
 
         Args:
@@ -174,7 +174,7 @@ class DocumentProcessorNode(MultiAgentBase):
         enhanced_manifest = None
 
         if manifest_path.exists():
-            print(f"📋 Found manifest file, using manifest-driven document loading")
+            print("📋 Found manifest file, using manifest-driven document loading")
             manifest_config = self._load_manifest(manifest_path)
 
             # Load documents according to manifest
@@ -193,7 +193,7 @@ class DocumentProcessorNode(MultiAgentBase):
                 manifest_config, directory_path
             )
         else:
-            print(f"📁 No manifest found, scanning directory for documents")
+            print("📁 No manifest found, scanning directory for documents")
             documents = self._collect_documents_from_directory(directory_path)
 
         if not documents:
@@ -246,7 +246,7 @@ class DocumentProcessorNode(MultiAgentBase):
         print(f"📄 Processing single file: {file_path}")
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             documents = [{"name": file_path.name, "content": content}]
@@ -259,7 +259,7 @@ class DocumentProcessorNode(MultiAgentBase):
             )
 
         except Exception as e:
-            raise ValueError(f"Failed to read file {file_path}: {e}")
+            raise ValueError(f"Failed to read file {file_path}: {e}") from e
 
     async def _process_direct_content(self, content: str) -> DocumentProcessorResult:
         """Process direct content string.
@@ -280,7 +280,7 @@ class DocumentProcessorNode(MultiAgentBase):
 
     def _collect_documents_from_directory(
         self, directory_path: Path
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """Collect all readable documents from a directory.
 
         Args:
@@ -309,7 +309,7 @@ class DocumentProcessorNode(MultiAgentBase):
         for file_path in directory_path.iterdir():
             if file_path.is_file() and file_path.suffix.lower() in text_extensions:
                 try:
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    with open(file_path, encoding="utf-8") as f:
                         content = f.read()
                     documents.append({"name": file_path.name, "content": content})
                     print(f"  ✓ Loaded: {file_path.name}")
@@ -320,8 +320,8 @@ class DocumentProcessorNode(MultiAgentBase):
         return documents
 
     def _collect_documents_from_manifest(
-        self, manifest_config: Dict[str, Any], directory_path: Path
-    ) -> List[Dict[str, str]]:
+        self, manifest_config: dict[str, Any], directory_path: Path
+    ) -> list[dict[str, str]]:
         """Collect documents specified in manifest configuration.
 
         Args:
@@ -346,7 +346,7 @@ class DocumentProcessorNode(MultiAgentBase):
             primary_path = self._resolve_document_path(primary_doc, directory_path)
             if primary_path and primary_path.exists():
                 try:
-                    with open(primary_path, "r", encoding="utf-8") as f:
+                    with open(primary_path, encoding="utf-8") as f:
                         content = f.read()
                     documents.append(
                         {
@@ -370,7 +370,7 @@ class DocumentProcessorNode(MultiAgentBase):
             )
             if supporting_path and supporting_path.exists():
                 try:
-                    with open(supporting_path, "r", encoding="utf-8") as f:
+                    with open(supporting_path, encoding="utf-8") as f:
                         content = f.read()
                     documents.append(
                         {
@@ -399,7 +399,7 @@ class DocumentProcessorNode(MultiAgentBase):
 
     def _resolve_document_path(
         self, doc_path: str, base_directory: Path
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """Resolve document path relative to base directory.
 
         Args:
@@ -423,7 +423,7 @@ class DocumentProcessorNode(MultiAgentBase):
             print(f"  ⚠️  Failed to resolve document path {doc_path}: {e}")
             return None
 
-    def _compile_documents_for_review(self, documents: List[Dict[str, str]]) -> str:
+    def _compile_documents_for_review(self, documents: list[dict[str, str]]) -> str:
         """Compile multiple documents into a single content string for review.
 
         Args:
@@ -474,7 +474,7 @@ class DocumentProcessorNode(MultiAgentBase):
 
         return "\n".join(compiled_parts)
 
-    def _load_manifest(self, manifest_path: Path) -> Dict[str, Any]:
+    def _load_manifest(self, manifest_path: Path) -> dict[str, Any]:
         """Load and parse manifest file.
 
         Args:
@@ -486,7 +486,7 @@ class DocumentProcessorNode(MultiAgentBase):
         import yaml
 
         try:
-            with open(manifest_path, "r", encoding="utf-8") as f:
+            with open(manifest_path, encoding="utf-8") as f:
                 manifest = yaml.safe_load(f)
             return manifest
         except Exception as e:
@@ -494,8 +494,8 @@ class DocumentProcessorNode(MultiAgentBase):
             return {}
 
     def _process_advanced_manifest(
-        self, manifest_config: Dict[str, Any], directory_path: Path
-    ) -> Dict[str, Any]:
+        self, manifest_config: dict[str, Any], directory_path: Path
+    ) -> dict[str, Any]:
         """Process advanced manifest features.
 
         Args:
@@ -533,8 +533,8 @@ class DocumentProcessorNode(MultiAgentBase):
         return manifest_config
 
     def _process_context_files(
-        self, review_config: Dict[str, Any], directory_path: Path
-    ) -> List[Dict[str, Any]]:
+        self, review_config: dict[str, Any], directory_path: Path
+    ) -> list[dict[str, Any]]:
         """Process context files from manifest.
 
         Args:
@@ -552,7 +552,7 @@ class DocumentProcessorNode(MultiAgentBase):
             context_path = directory_path / context_config["path"]
             if context_path.exists():
                 try:
-                    with open(context_path, "r", encoding="utf-8") as f:
+                    with open(context_path, encoding="utf-8") as f:
                         content = f.read()
 
                     processed_context = {
@@ -583,8 +583,8 @@ class DocumentProcessorNode(MultiAgentBase):
         return context_files
 
     def _process_document_relationships(
-        self, review_config: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, review_config: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Process document relationships from manifest.
 
         Args:
@@ -614,7 +614,7 @@ class DocumentProcessorNode(MultiAgentBase):
 
         return processed_relationships
 
-    def _process_review_focus(self, review_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _process_review_focus(self, review_config: dict[str, Any]) -> dict[str, Any]:
         """Process review focus configuration from manifest.
 
         Args:
@@ -664,8 +664,8 @@ class DocumentProcessorNode(MultiAgentBase):
         return processed_focus
 
     def _process_output_configuration(
-        self, review_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, review_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """Process output configuration from manifest.
 
         Args:
@@ -700,9 +700,9 @@ class DocumentProcessorNode(MultiAgentBase):
 
     def _validate_loaded_documents(
         self,
-        loaded_documents: List[Dict[str, str]],
-        enhanced_manifest: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Dict[str, Any]]:
+        loaded_documents: list[dict[str, str]],
+        enhanced_manifest: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
         """Validate loaded documents against manifest expectations.
 
         Args:
@@ -751,8 +751,8 @@ class DocumentProcessorNode(MultiAgentBase):
             return None
 
     def _check_manifest_compliance(
-        self, loaded_documents: List[Dict[str, str]], enhanced_manifest: Dict[str, Any]
-    ) -> Optional[Tuple[List, Any]]:
+        self, loaded_documents: list[dict[str, str]], enhanced_manifest: dict[str, Any]
+    ) -> tuple[list, Any] | None:
         """Check if loaded documents comply with manifest expectations.
 
         Args:
@@ -763,9 +763,9 @@ class DocumentProcessorNode(MultiAgentBase):
             Tuple of (validation_results, metadata) or None
         """
         from ..validation.document_validator import (
-            ValidationResult,
-            ValidationLevel,
             DocumentMetadata,
+            ValidationLevel,
+            ValidationResult,
         )
 
         issues = []
@@ -864,7 +864,7 @@ class DocumentProcessorNode(MultiAgentBase):
 
         return None
 
-    def _report_validation_results(self, validation_results: Dict[str, Any]) -> None:
+    def _report_validation_results(self, validation_results: dict[str, Any]) -> None:
         """Report validation results to user.
 
         Args:
@@ -878,7 +878,7 @@ class DocumentProcessorNode(MultiAgentBase):
         file_issues = []  # Store (filename, errors, warnings) for later reporting
 
         # Single pass through all validation results
-        for filename, (results, metadata) in validation_results.items():
+        for filename, (results, _metadata) in validation_results.items():
             if not results:
                 continue
 

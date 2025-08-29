@@ -4,11 +4,11 @@ Main CLI interface for Review-Crew.
 This module provides the command-line interface for running multi-agent reviews.
 """
 
-import click
 import asyncio
 import sys
 from pathlib import Path
-from typing import Optional
+
+import click
 
 from ..agents.conversation_manager import ConversationManager
 from ..config.persona_loader import PersonaLoader
@@ -58,16 +58,16 @@ def cli():
     help="Include context results from contextualizers in the output",
 )
 def review(
-    content: Optional[str],
+    content: str | None,
     agents: tuple,
-    output: Optional[str],
+    output: str | None,
     no_content: bool,
     provider: str,
-    model_url: Optional[str],
-    model_id: Optional[str],
+    model_url: str | None,
+    model_id: str | None,
     no_analysis: bool,
-    context: Optional[str],
-    max_context_length: Optional[int],
+    context: str | None,
+    max_context_length: int | None,
     include_context: bool,
 ):
     """Review content with multiple AI agents.
@@ -115,7 +115,7 @@ def review(
             if content_path.is_file():
                 # Single file - existing behavior
                 try:
-                    with open(content_path, "r", encoding="utf-8") as f:
+                    with open(content_path, encoding="utf-8") as f:
                         content_text = f.read()
                     click.echo(f"📁 Reading content from: {content_path}")
                 except Exception as e:
@@ -129,11 +129,11 @@ def review(
                 manifest_path = content_path / "manifest.yaml"
                 if manifest_path.exists():
                     click.echo(
-                        f"📋 Found manifest file - will use custom reviewer selection"
+                        "📋 Found manifest file - will use custom reviewer selection"
                     )
                 else:
                     click.echo(
-                        f"📄 No manifest found - will use all available reviewers"
+                        "📄 No manifest found - will use all available reviewers"
                     )
 
                 content_text = str(
@@ -194,7 +194,7 @@ def review(
     context_data = None
     if context:
         try:
-            with open(context, "r", encoding="utf-8") as f:
+            with open(context, encoding="utf-8") as f:
                 context_data = f.read()
             click.echo(f"📄 Loaded context from: {context}")
         except Exception as e:
@@ -262,7 +262,7 @@ def agents():
 @click.argument("content", type=str)
 @click.option("--agent", "-a", required=True, help="Specific agent to use")
 @click.option("--output", "-o", type=click.Path(), help="Save results to file")
-def single(content: str, agent: str, output: Optional[str]):
+def single(content: str, agent: str, output: str | None):
     """Review content with a single agent.
 
     CONTENT can be either text content or a file path.
@@ -271,7 +271,7 @@ def single(content: str, agent: str, output: Optional[str]):
     content_path = Path(content)
     if content_path.exists() and content_path.is_file():
         try:
-            with open(content_path, "r", encoding="utf-8") as f:
+            with open(content_path, encoding="utf-8") as f:
                 content_text = f.read()
             click.echo(f"📁 Reading content from: {content_path}")
         except Exception as e:
@@ -355,7 +355,7 @@ def status():
         for persona in contextualizers:
             click.echo(f"  - {persona.name} ({persona.role})")
 
-        click.echo(f"\n📁 Personas Directory:")
+        click.echo("\n📁 Personas Directory:")
         status_icon = "✅" if config_info["personas_dir_exists"] else "❌"
         source_info = ""
         if config_info["is_using_env_var"]:
@@ -367,11 +367,11 @@ def status():
 
         # Show environment variable if set
         if config_info["env_personas_dir"]:
-            click.echo(f"\n🌍 Environment Variable:")
+            click.echo("\n🌍 Environment Variable:")
             click.echo(f"  REVIEW_CREW_PERSONAS_DIR: {config_info['env_personas_dir']}")
         else:
             click.echo(
-                f"\n💡 Tip: Create .env file or set REVIEW_CREW_PERSONAS_DIR to use custom personas"
+                "\n💡 Tip: Create .env file or set REVIEW_CREW_PERSONAS_DIR to use custom personas"
             )
 
     except Exception as e:

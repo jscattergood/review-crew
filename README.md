@@ -15,9 +15,11 @@ Review-Crew is a powerful, generic multi-agent review platform that uses AI agen
 - **Hybrid Architecture**: Graph-based execution with legacy fallback for maximum reliability
 
 ## Technology
-* **Language**: Python
+* **Language**: Python 3.10+
 * **Package Management**: uv
 * **Agent Framework**: [Strands Agents](https://strandsagents.com/latest/documentation/docs/) - AWS-backed, production-ready multi-agent framework
+* **Code Quality**: [Ruff](https://docs.astral.sh/ruff/) - Ultra-fast Python linter and formatter (replaces Black + Flake8)
+* **Type Checking**: MyPy
 * **Interface**: CLI
 * **LLM**: LM Studio + Available Models (configurable model providers)
 
@@ -74,9 +76,12 @@ review-crew/
 ### Quick Start
 ```bash
 # Install dependencies and set up project
-make install-pip    # or 'make install' if you have uv
+make install       # Install with uv (recommended)
 make setup         # Copy example personas to config/
 make test          # Validate configuration
+
+# Code quality checks (optional but recommended)
+make quality       # Run linting, formatting, and type checking
 
 # View available personas
 make personas
@@ -102,11 +107,37 @@ make test-lm-studio
 ```bash
 make help          # Show all available commands
 make status        # Check project status
-make format        # Format code with black
-make lint          # Run linting with flake8
-make check         # Run type checking with mypy
+
+# Code Quality (Ruff-powered)
+make format        # Format code with Ruff (replaces Black)
+make lint          # Run linting with Ruff (replaces Flake8)
+make lint fix      # Auto-fix linting issues with Ruff
+make check         # Run type checking with MyPy
+make check fix     # Run type checking (MyPy doesn't auto-fix, same as check)
+make quality       # Run all code quality checks (lint + format + type check)
+make quality fix   # Run all quality checks with auto-fixes where possible
+
+# Project Management
 make clean         # Clean up temporary files
-make dev-install   # Install development dependencies (uses uv sync --group dev)
+make install       # Install dependencies with uv
+```
+
+#### Code Quality with Ruff
+Review-Crew uses [Ruff](https://docs.astral.sh/ruff/) for blazing-fast code quality management:
+
+**Benefits:**
+- ⚡ **~1000x faster** than traditional Black + Flake8 combination
+- 🔧 **Auto-fixes** 800+ types of issues automatically
+- 📦 **Single tool** replaces multiple dependencies (Black, Flake8, isort)
+- 🎯 **Modern standards** - enforces latest Python typing conventions
+- ⚙️ **Zero config** - works out of the box with sensible defaults
+
+**Quick Usage:**
+```bash
+make quality fix   # Run all checks with auto-fixes (recommended for development)
+make quality       # Run all checks without fixes (recommended for CI/CD)
+make lint fix      # Auto-fix linting issues only
+make format        # Format code to consistent style
 ```
 
 ### Running Conversations
@@ -661,7 +692,7 @@ uv sync --extra lm-studio
 # For Ollama support  
 uv sync --extra ollama
 
-# For development (includes pytest, black, mypy)
+# For development (includes pytest, ruff, mypy)
 uv sync --group dev
 
 # Reinstall everything

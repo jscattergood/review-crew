@@ -4,7 +4,6 @@ Data models for Review-Crew agents.
 This module contains the core data structures used throughout the agent system.
 """
 
-from typing import List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -20,7 +19,7 @@ class ReviewResult:
     agent_role: str
     feedback: str
     timestamp: datetime
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -28,13 +27,13 @@ class ConversationResult:
     """Complete conversation result with all agent reviews."""
 
     content: str
-    reviews: List[ReviewResult]
+    reviews: list[ReviewResult]
     timestamp: datetime
-    summary: Optional[str] = None
-    analysis_results: List[AnalysisResult] = None
-    context_results: List[ContextResult] = None
-    original_content: Optional[str] = None
-    analysis_errors: List[str] = None  # Track analysis failures separately
+    summary: str | None = None
+    analysis_results: list[AnalysisResult] = None
+    context_results: list[ContextResult] = None
+    original_content: str | None = None
+    analysis_errors: list[str] = None  # Track analysis failures separately
 
     def __post_init__(self):
         if self.analysis_results is None:
