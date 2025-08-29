@@ -46,28 +46,8 @@ class ContextAgent(BaseAgent):
         # Initialize the base agent
         super().__init__(persona, model_provider, model_config)
 
-    def process_context(self, context_data: str) -> Optional[ContextResult]:
+    async def process_context(self, context_data: str) -> Optional[ContextResult]:
         """Process and format contextual information using the contextualizer persona.
-
-        Args:
-            context_data: The raw context information to be processed and formatted
-
-        Returns:
-            ContextResult with formatted context, or None if no contextualizer available
-        """
-        # Agent is guaranteed to exist since we pass persona in constructor
-
-        # Format the prompt with the context data
-        prompt = self.persona.prompt_template.format(content=context_data)
-
-        # Use the base agent's invoke method
-        result = self.invoke(prompt, "context_processing")
-
-        # Parse the structured response
-        return self._parse_context_response(result)
-
-    async def process_context_async(self, context_data: str) -> Optional[ContextResult]:
-        """Asynchronously process and format contextual information.
 
         Args:
             context_data: The raw context information to be processed and formatted
@@ -89,7 +69,7 @@ class ContextAgent(BaseAgent):
         prompt = self.persona.prompt_template.format(content=context_data)
 
         # Use the base agent's invoke_async method
-        result = await self.invoke_async_legacy(prompt, "context_processing_async")
+        result = await self.invoke_async_legacy(prompt, "context_processing")
 
         # Parse the structured response
         return self._parse_context_response(result)
@@ -195,7 +175,7 @@ class ContextAgent(BaseAgent):
 
             # Process using the specialized context method with timing
             start_time = time.time()
-            context_result = await self.process_context_async(content)
+            context_result = await self.process_context(content)
             execution_time = time.time() - start_time
 
             # Format context result as text for the response

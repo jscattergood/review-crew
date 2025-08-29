@@ -59,7 +59,7 @@ class AnalysisAgent(BaseAgent):
         # Initialize the base agent
         super().__init__(persona, model_provider, model_config)
 
-    def analyze(
+    async def analyze(
         self, reviews: List[Dict[str, Any]], max_context_length: Optional[int] = None
     ) -> AnalysisResult:
         """Perform analysis on multiple agent reviews with optional chunking.
@@ -75,46 +75,7 @@ class AnalysisAgent(BaseAgent):
 
         # Check if we need to use chunking strategy
         if max_context_length and self._should_chunk(reviews, max_context_length):
-            return self._analyze_with_chunking(reviews, max_context_length)
-        else:
-            return self._analyze_full_context(reviews)
-
-    def _analyze_full_context(self, reviews: List[Dict[str, Any]]) -> AnalysisResult:
-        """Perform analysis with full context (original method)."""
-        # Format reviews for the prompt
-        formatted_reviews = self._format_reviews_for_analysis(reviews)
-
-        # Create the analysis prompt by manually formatting it
-        # (since ReviewAgent.review() only expects {content} placeholder)
-        analysis_prompt = self.persona.prompt_template.format(
-            reviews=formatted_reviews, content=""
-        )
-
-        # Get the analysis using the base agent's invoke method
-        synthesis = self.invoke(analysis_prompt, "analysis")
-
-        # Parse the structured response
-        return self._parse_meta_analysis_response(synthesis)
-
-    async def analyze_async(
-        self, reviews: List[Dict[str, Any]], max_context_length: Optional[int] = None
-    ) -> AnalysisResult:
-        """Perform asynchronous meta-analysis on multiple agent reviews.
-
-        Args:
-            reviews: List of review results from other agents
-            max_context_length: Maximum context length for chunking (if None, no chunking)
-
-        Returns:
-            AnalysisResult with synthesized analysis
-        """
-        # Persona is guaranteed to exist since we pass it in constructor
-
-        # Check if we need to use chunking strategy
-        if max_context_length and self._should_chunk(reviews, max_context_length):
-            # Note: For async, we'll use the sync chunking method for now
-            # In a full implementation, we'd make the chunking async too
-            return self._analyze_with_chunking(reviews, max_context_length)
+            return await self._analyze_with_chunking(reviews, max_context_length)
 
         # Format reviews for the prompt
         formatted_reviews = self._format_reviews_for_analysis(reviews)
@@ -126,7 +87,7 @@ class AnalysisAgent(BaseAgent):
         )
 
         # Get the meta-analysis using the base agent's invoke_async method
-        synthesis = await self.invoke_async_legacy(analysis_prompt, "analysis_async")
+        synthesis = await self.invoke_async_legacy(analysis_prompt, "analysis")
 
         # Parse the structured response
         return self._parse_meta_analysis_response(synthesis)
@@ -177,7 +138,7 @@ class AnalysisAgent(BaseAgent):
 
         return total_tokens > max_context_length
 
-    def _analyze_with_chunking(
+    async def _analyze_with_chunking(
         self, reviews: List[Dict[str, Any]], max_context_length: int
     ) -> AnalysisResult:
         """Perform analysis using chunking strategy for large review sets.
@@ -213,13 +174,15 @@ class AnalysisAgent(BaseAgent):
             )
 
             # Get analysis for this chunk
-            chunk_analysis = self.invoke(analysis_prompt, f"chunk_analysis_{i}")
+            chunk_analysis = await self.invoke_async_legacy(
+                analysis_prompt, f"chunk_analysis_{i}"
+            )
 
             chunk_analyses.append(chunk_analysis)
 
         # Synthesize all chunk analyses into final result
         print("🔄 Synthesizing chunk analyses into final result...")
-        return self._synthesize_chunk_analyses(chunk_analyses)
+        return await self._synthesize_chunk_analyses(chunk_analyses)
 
     def _parse_meta_analysis_response(self, response: str) -> AnalysisResult:
         """Parse the structured meta-analysis response."""
@@ -370,7 +333,9 @@ Analyze ONLY the reviews in this chunk and provide:
 
 Focus on extracting the key insights from this specific set of reviews. Keep your analysis concise and focused on the most important points."""
 
-    def _synthesize_chunk_analyses(self, chunk_analyses: List[str]) -> AnalysisResult:
+    async def _synthesize_chunk_analyses(
+        self, chunk_analyses: List[str]
+    ) -> AnalysisResult:
         """Synthesize multiple chunk analyses into a final result.
 
         Args:
@@ -396,7 +361,7 @@ Synthesize all chunk analyses into a comprehensive final analysis. DO NOT use ch
 ### SYNTHESIS & RECOMMENDATIONS
 Combine insights from all reviews into coherent, prioritized recommendations.
 
-### KEY THEMES IDENTIFIED  
+### KEY THEMES IDENTIFIED
 List the 3-5 most important themes that emerged across ALL reviews.
 
 ### CONSENSUS AREAS
@@ -414,7 +379,7 @@ Provide strategic advice based on the complete picture from all reviews.
 Focus on creating a comprehensive synthesis that captures the full scope of all reviewer feedback. Write as if you analyzed all reviews directly, not as chunks."""
 
         # Get the final synthesis
-        synthesis = self.invoke(synthesis_prompt, "final_synthesis")
+        synthesis = await self.invoke_async_legacy(synthesis_prompt, "final_synthesis")
 
         # Parse the final synthesis
         return self._parse_meta_analysis_response(synthesis)
@@ -487,7 +452,7 @@ Focus on creating a comprehensive synthesis that captures the full scope of all 
 
                 # Process using the specialized analysis method with timing
                 start_time = time.time()
-                analysis_result = await self.analyze_async(reviews)
+                analysis_result = await self.analyze(reviews)
                 execution_time = time.time() - start_time
 
             # Format analysis result as text for the response

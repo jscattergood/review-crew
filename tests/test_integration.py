@@ -70,7 +70,8 @@ def register_user(email, password):
         except Exception as e:
             pytest.skip(f"ConversationManager initialization failed: {e}")
     
-    def test_mock_review_workflow(self, sample_python_code):
+    @pytest.mark.asyncio
+    async def test_mock_review_workflow(self, sample_python_code):
         """Test complete review workflow with mocked LLM responses."""
         
         # Mock the Strands Agent and ReviewAgent to avoid actual LLM calls
@@ -110,7 +111,7 @@ def register_user(email, password):
                     pytest.skip("No agents available for testing")
                 
                 # Run the review
-                result = manager.run_review(sample_python_code)
+                result = await manager.run_review(sample_python_code)
                 
                 # Verify results
                 assert result.content == sample_python_code
@@ -138,7 +139,8 @@ def register_user(email, password):
                 # Let other exceptions fail the test so we can see what's wrong
                 raise
     
-    def test_context_integration(self, sample_content, sample_context):
+    @pytest.mark.asyncio
+    async def test_context_integration(self, sample_content, sample_context):
         """Test context processing integration."""
         
         with patch('src.agents.base_agent.Agent') as mock_agent_class, \
@@ -180,7 +182,7 @@ def register_user(email, password):
                     pytest.skip("No agents available for testing")
                 
                 # Run review with context
-                result = manager.run_review(sample_content, context_data=sample_context)
+                result = await manager.run_review(sample_content, context_data=sample_context)
                 
                 # Verify context was processed
                 if result.context_results:
@@ -191,7 +193,8 @@ def register_user(email, password):
             except Exception as e:
                 pytest.skip(f"Context integration test failed: {e}")
     
-    def test_file_based_review(self):
+    @pytest.mark.asyncio
+    async def test_file_based_review(self):
         """Test reviewing file-like content with shorter samples."""
         
         # Use shorter sample content to avoid file name length issues
@@ -241,7 +244,7 @@ curl -X POST api.example.com/register -d "email=user@example.com"
                 if len(manager.agents) == 0:
                     pytest.skip("No agents available for testing")
                 
-                result = manager.run_review(sample_api_doc)
+                result = await manager.run_review(sample_api_doc)
                 
                 assert result.content == sample_api_doc
                 assert len(result.reviews) > 0
@@ -258,7 +261,8 @@ curl -X POST api.example.com/register -d "email=user@example.com"
                 raise
     
     @pytest.mark.integration
-    def test_expected_feedback_patterns(self, sample_python_code):
+    @pytest.mark.asyncio
+    async def test_expected_feedback_patterns(self, sample_python_code):
         """Test that mock reviews contain expected feedback patterns."""
         
         expected_patterns = {
@@ -300,7 +304,7 @@ curl -X POST api.example.com/register -d "email=user@example.com"
                 if len(manager.agents) == 0:
                     pytest.skip("No agents available for testing")
                 
-                result = manager.run_review(sample_python_code)
+                result = await manager.run_review(sample_python_code)
                 
                 # Check that feedback contains expected patterns
                 all_feedback = " ".join([r.feedback.lower() for r in result.reviews if not r.error])

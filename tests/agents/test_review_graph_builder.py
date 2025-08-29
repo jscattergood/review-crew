@@ -394,17 +394,7 @@ class TestReviewGraphBuilder:
         
         assert result == mock_result
     
-    def test_execute_graph_sync(self, builder):
-        """Test synchronous graph execution."""
-        mock_graph = Mock()
-        mock_result = Mock(spec=MultiAgentResult)
-        mock_graph.return_value = mock_result
-        
-        result = builder.execute_graph_sync(mock_graph, "test input")
-        
-        assert result == mock_result
-        mock_graph.assert_called_once_with("test input")
-    
+
     def test_agents_are_multiagent_base_compatible(self, builder):
         """Test that our agents are compatible with MultiAgentBase interface."""
         # Test that agents have the required methods

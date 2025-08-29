@@ -29,7 +29,7 @@ class ReviewAgent(BaseAgent):
         # Initialize the base agent
         super().__init__(persona, model_provider, model_config_override)
 
-    def review(self, content: str) -> str:
+    async def review(self, content: str) -> str:
         """Review content using the configured persona.
 
         Args:
@@ -45,27 +45,8 @@ class ReviewAgent(BaseAgent):
         # Format the prompt with the content
         prompt = self.persona.prompt_template.format(content=content)
 
-        # Use the base agent's invoke method which handles logging
-        return self.invoke(prompt, "review")
-
-    async def review_async(self, content: str) -> str:
-        """Asynchronously review content using the configured persona.
-
-        Args:
-            content: The content to review
-
-        Returns:
-            Review feedback from the agent
-        """
-        # Check if we received an error instead of content
-        if content == "ERROR_NO_CONTENT":
-            return "No essay content was provided for review. Please submit your essay text for evaluation."
-
-        # Format the prompt with the content
-        prompt = self.persona.prompt_template.format(content=content)
-
         # Use the base agent's invoke_async method which handles logging
-        return await self.invoke_async_legacy(prompt, "review_async")
+        return await self.invoke_async_legacy(prompt, "review")
 
     async def invoke_async_graph(self, task, **kwargs):
         """Process task asynchronously for graph execution using specialized review logic.
@@ -89,7 +70,7 @@ class ReviewAgent(BaseAgent):
 
             # Process using the specialized review method with timing
             start_time = time.time()
-            response = await self.review_async(content)
+            response = await self.review(content)
             execution_time = time.time() - start_time
 
             # Clean up any raw JSON that might have been generated in the response

@@ -83,13 +83,13 @@ class ConversationManager:
         """
         return [agent.get_info() for agent in self.analysis_agents]
 
-    def run_review(
+    async def run_review(
         self,
         content: str,
         context_data: Optional[str] = None,
         selected_agents: Optional[List[str]] = None,
     ) -> ConversationResult:
-        """Run a synchronous review with selected agents using graph-based execution.
+        """Run a review with selected agents using graph-based execution.
 
         Args:
             content: Content to review or directory path for multi-document review
@@ -102,135 +102,21 @@ class ConversationManager:
         # Check if content is a directory path for multi-document review
         content_path = Path(content)
         if content_path.exists() and content_path.is_dir():
-            return self._run_graph_based_review(content_path, selected_agents)
+            return await self._run_graph_based_review(content_path, selected_agents)
         elif content_path.exists() and content_path.is_file():
-            return self._run_graph_based_review(content_path, selected_agents)
+            return await self._run_graph_based_review(content_path, selected_agents)
         else:
             # Direct content - use simple graph
-            return self._run_simple_graph_review(content, selected_agents)
-
-    async def run_review_async(
-        self,
-        content: str,
-        context_data: Optional[str] = None,
-        selected_agents: Optional[List[str]] = None,
-    ) -> ConversationResult:
-        """Run an asynchronous review with selected agents using graph-based execution.
-
-        Args:
-            content: Content to review or directory path for multi-document review
-            context_data: Optional context information to be processed by contextualizer
-            selected_agents: Optional list of agent names to use (uses all if None)
-
-        Returns:
-            ConversationResult with all reviews
-        """
-        # Check if content is a directory path for multi-document review
-        content_path = Path(content)
-        if content_path.exists() and content_path.is_dir():
-            return await self._run_graph_based_review_async(
-                content_path, selected_agents
-            )
-        elif content_path.exists() and content_path.is_file():
-            return await self._run_graph_based_review_async(
-                content_path, selected_agents
-            )
-        else:
-            # Direct content - use simple graph
-            return await self._run_simple_graph_review_async(content, selected_agents)
+            return await self._run_simple_graph_review(content, selected_agents)
 
     # ========================================
     # Graph-Based Execution Methods
     # ========================================
 
-    def _run_graph_based_review(
+    async def _run_graph_based_review(
         self, content_path: Path, selected_agents: Optional[List[str]] = None
     ) -> ConversationResult:
-        """Run review using graph-based execution for file/directory input.
-
-        Args:
-            content_path: Path to file or directory to review
-            selected_agents: Optional list of agent names to use
-
-        Returns:
-            ConversationResult with all reviews and analysis
-        """
-        try:
-            # Build appropriate graph based on content type
-            if content_path.is_dir():
-                # Check for manifest
-                manifest_path = content_path / "manifest.yaml"
-                if manifest_path.exists():
-                    manifest_config = self._load_manifest(manifest_path)
-                    graph = self.graph_builder.build_manifest_driven_graph(
-                        manifest_config, content_path
-                    )
-                else:
-                    graph = self.graph_builder.build_standard_review_graph(
-                        selected_reviewers=selected_agents
-                    )
-            else:
-                # Single file
-                graph = self.graph_builder.build_standard_review_graph(
-                    selected_reviewers=selected_agents
-                )
-
-            # Execute graph
-            graph_result = self.graph_builder.execute_graph_sync(
-                graph, str(content_path)
-            )
-
-            # Convert result back to ConversationResult
-            return self.result_converter.convert_to_conversation_result(
-                graph_result, original_content=str(content_path)
-            )
-
-        except Exception as e:
-            print(f"❌ Graph-based review failed: {e}")
-            # Fallback to legacy implementation
-            return self._fallback_to_legacy_review(content_path, selected_agents)
-
-    def _run_simple_graph_review(
-        self, content: str, selected_agents: Optional[List[str]] = None
-    ) -> ConversationResult:
-        """Run review using simple graph for direct content input.
-
-        Args:
-            content: Direct content to review
-            selected_agents: Optional list of agent names to use
-
-        Returns:
-            ConversationResult with all reviews and analysis
-        """
-        try:
-            # Check if content looks like an error case (e.g., path that doesn't exist)
-            if self._is_error_content(content):
-                return ConversationResult(
-                    content=content,
-                    reviews=[],
-                    timestamp=datetime.now(),
-                    analysis_errors=["No valid content provided for review"],
-                )
-            # Build simple graph for direct content
-            graph = self.graph_builder.build_simple_review_graph(content)
-
-            # Execute graph
-            graph_result = self.graph_builder.execute_graph_sync(graph, content)
-
-            # Convert result back to ConversationResult
-            return self.result_converter.convert_to_conversation_result(
-                graph_result, original_content=content
-            )
-
-        except Exception as e:
-            print(f"❌ Simple graph review failed: {e}")
-            # Fallback to legacy implementation
-            return self._fallback_to_legacy_simple_review(content, selected_agents)
-
-    async def _run_graph_based_review_async(
-        self, content_path: Path, selected_agents: Optional[List[str]] = None
-    ) -> ConversationResult:
-        """Run review using graph-based execution asynchronously.
+        """Run review using graph-based execution.
 
         Args:
             content_path: Path to file or directory to review
@@ -272,14 +158,12 @@ class ConversationManager:
         except Exception as e:
             print(f"❌ Async graph-based review failed: {e}")
             # Fallback to legacy implementation
-            return await self._fallback_to_legacy_review_async(
-                content_path, selected_agents
-            )
+            return await self._fallback_to_legacy_review(content_path, selected_agents)
 
-    async def _run_simple_graph_review_async(
+    async def _run_simple_graph_review(
         self, content: str, selected_agents: Optional[List[str]] = None
     ) -> ConversationResult:
-        """Run review using simple graph for direct content input asynchronously.
+        """Run review using simple graph for direct content input.
 
         Args:
             content: Direct content to review
@@ -312,7 +196,7 @@ class ConversationManager:
         except Exception as e:
             print(f"❌ Async simple graph review failed: {e}")
             # Fallback to legacy implementation
-            return await self._fallback_to_legacy_simple_review_async(
+            return await self._fallback_to_legacy_simple_review(
                 content, selected_agents
             )
 
@@ -343,7 +227,7 @@ class ConversationManager:
     # Fallback Methods (Legacy Implementation)
     # ========================================
 
-    def _fallback_to_legacy_review(
+    async def _fallback_to_legacy_review(
         self, content_path: Path, selected_agents: Optional[List[str]] = None
     ) -> ConversationResult:
         """Fallback to legacy review implementation."""
@@ -359,43 +243,11 @@ class ConversationManager:
             ],
         )
 
-    def _fallback_to_legacy_simple_review(
+    async def _fallback_to_legacy_simple_review(
         self, content: str, selected_agents: Optional[List[str]] = None
     ) -> ConversationResult:
         """Fallback to legacy simple review implementation."""
         print("🔄 Falling back to legacy simple review implementation")
-        # For now, return a basic result - in a real implementation,
-        # this would call the original legacy methods
-        return ConversationResult(
-            content=content,
-            reviews=[],
-            timestamp=datetime.now(),
-            analysis_errors=[
-                "Graph-based execution failed, legacy fallback not fully implemented"
-            ],
-        )
-
-    async def _fallback_to_legacy_review_async(
-        self, content_path: Path, selected_agents: Optional[List[str]] = None
-    ) -> ConversationResult:
-        """Fallback to legacy async review implementation."""
-        print("🔄 Falling back to legacy async review implementation")
-        # For now, return a basic result - in a real implementation,
-        # this would call the original legacy methods
-        return ConversationResult(
-            content=f"Legacy async fallback for {content_path}",
-            reviews=[],
-            timestamp=datetime.now(),
-            analysis_errors=[
-                "Graph-based execution failed, legacy fallback not fully implemented"
-            ],
-        )
-
-    async def _fallback_to_legacy_simple_review_async(
-        self, content: str, selected_agents: Optional[List[str]] = None
-    ) -> ConversationResult:
-        """Fallback to legacy async simple review implementation."""
-        print("🔄 Falling back to legacy async simple review implementation")
         # For now, return a basic result - in a real implementation,
         # this would call the original legacy methods
         return ConversationResult(

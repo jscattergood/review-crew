@@ -530,15 +530,3 @@ class ReviewGraphBuilder:
             MultiAgentResult with execution results
         """
         return await graph.invoke_async(input_data)
-
-    def execute_graph_sync(self, graph, input_data: Any) -> MultiAgentResult:
-        """Execute a graph synchronously with input data.
-
-        Args:
-            graph: Built Strands Graph
-            input_data: Input data to process
-
-        Returns:
-            MultiAgentResult with execution results
-        """
-        return graph(input_data)

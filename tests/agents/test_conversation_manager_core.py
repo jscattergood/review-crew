@@ -76,12 +76,13 @@ class TestConversationManagerCore:
         result = manager._clean_raw_json(regular_text)
         assert result == regular_text
 
-    def test_run_review_basic_functionality(self, manager):
+    @pytest.mark.asyncio
+    async def test_run_review_basic_functionality(self, manager):
         """Test that run_review doesn't crash and returns something."""
         # This is a basic smoke test - the method should exist and not crash
         try:
             # Use a simple string input that should trigger error handling
-            result = manager.run_review("input/nonexistent")
+            result = await manager.run_review("input/nonexistent")
             assert isinstance(result, ConversationResult)
         except Exception as e:
             # If it fails, at least we know the method exists

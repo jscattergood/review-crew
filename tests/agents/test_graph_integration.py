@@ -5,7 +5,7 @@ This module tests that our refactored agents work correctly as Strands Graph nod
 """
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, AsyncMock, patch
 
 from src.agents.review_agent import ReviewAgent
 from src.agents.context_agent import ContextAgent
@@ -187,25 +187,26 @@ class TestGraphIntegration:
         assert "No essay content was provided" in str(node_result.result.message)
 
     @patch('src.agents.base_agent.Agent')
-    def test_backward_compatibility_methods_still_work(self, mock_agent_class, mock_persona):
-        """Test that original methods (review, process_context, analyze) still work."""
+    @pytest.mark.asyncio
+    async def test_backward_compatibility_methods_still_work(self, mock_agent_class, mock_persona):
+        """Test that async methods (review, process_context, analyze) work correctly."""
         # Mock the Strands Agent
         mock_agent = Mock()
-        mock_agent.return_value = "Test response"
+        mock_agent.invoke_async = AsyncMock(return_value="Test response")
         mock_agent_class.return_value = mock_agent
         
         # Create ReviewAgent
         agent = ReviewAgent(mock_persona)
         
-        # Test original review method still works
-        response = agent.review("Test content")
+        # Test async review method works
+        response = await agent.review("Test content")
         
-        # Verify it returns string response (original interface)
+        # Verify it returns string response (async interface)
         assert isinstance(response, str)
         assert response == "Test response"
         
         # Verify the internal agent was called correctly
-        mock_agent.assert_called()
+        mock_agent.invoke_async.assert_called_once()
 
     def test_agent_name_generation(self, mock_persona):
         """Test that agent names are generated correctly for graph nodes."""

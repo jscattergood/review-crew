@@ -7,9 +7,8 @@ This module provides the command-line interface for running multi-agent reviews.
 import click
 import asyncio
 import sys
-from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from ..agents.conversation_manager import ConversationManager
 from ..config.persona_loader import PersonaLoader
@@ -26,9 +25,6 @@ def cli():
 @click.argument("content", type=str, required=False)
 @click.option(
     "--agents", "-a", multiple=True, help="Specific agents to use (default: all)"
-)
-@click.option(
-    "--async-mode/--sync-mode", default=False, help="Run reviews asynchronously"
 )
 @click.option("--output", "-o", type=click.Path(), help="Save results to file")
 @click.option("--no-content", is_flag=True, help="Hide original content in output")
@@ -64,7 +60,6 @@ def cli():
 def review(
     content: Optional[str],
     agents: tuple,
-    async_mode: bool,
     output: Optional[str],
     no_content: bool,
     provider: str,
@@ -207,14 +202,10 @@ def review(
 
     # Run the review
     try:
-        if async_mode:
-            click.echo("🚀 Running async review...")
-            result = asyncio.run(
-                manager.run_review_async(content_text, context_data, selected_agents)
-            )
-        else:
-            click.echo("🚀 Running sync review...")
-            result = manager.run_review(content_text, context_data, selected_agents)
+        click.echo("🚀 Running review...")
+        result = asyncio.run(
+            manager.run_review(content_text, context_data, selected_agents)
+        )
 
         # Format and display results
         formatted_output = manager.format_results(
@@ -303,7 +294,7 @@ def single(content: str, agent: str, output: Optional[str]):
     # Run single agent review
     try:
         click.echo(f"🚀 Running review with {agent}...")
-        result = manager.run_review(content_text, [agent])
+        result = asyncio.run(manager.run_review(content_text, None, [agent]))
 
         # Format and display results
         formatted_output = manager.format_results(

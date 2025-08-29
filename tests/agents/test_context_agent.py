@@ -46,7 +46,7 @@ class TestContextAgent:
     async def test_process_context_async(self, agent):
         """Test asynchronous context processing."""
         content = "Test content to process"
-        result = await agent.process_context_async(content)
+        result = await agent.process_context(content)
         
         assert isinstance(result, ContextResult)
         assert result.formatted_context == "Test async context result"
@@ -57,7 +57,7 @@ class TestContextAgent:
     async def test_process_context_async_with_error_content(self, agent):
         """Test async context processing with error content."""
         error_content = "ERROR_NO_CONTENT"
-        result = await agent.process_context_async(error_content)
+        result = await agent.process_context(error_content)
         
         assert isinstance(result, ContextResult)
         assert "No content was provided" in result.formatted_context
@@ -66,7 +66,7 @@ class TestContextAgent:
     async def test_invoke_async_graph(self, agent):
         """Test graph-compatible async invoke method."""
         # Mock the process_context_async method
-        with patch.object(agent, 'process_context_async', new_callable=AsyncMock) as mock_process:
+        with patch.object(agent, 'process_context', new_callable=AsyncMock) as mock_process:
             mock_context_result = ContextResult(
                 formatted_context="Graph context result",
                 context_summary="Summary",
@@ -81,7 +81,7 @@ class TestContextAgent:
             assert hasattr(result, 'execution_time')
             assert hasattr(result, 'execution_count')
             
-            # Verify process_context_async was called
+            # Verify process_context was called
             mock_process.assert_called_once_with("test content")
 
     def test_parse_context_response(self, agent):

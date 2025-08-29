@@ -5,11 +5,9 @@ This module provides the base functionality for all agent types in the review cr
 All specific agent types (ReviewAgent, AnalysisAgent, ContextAgent) inherit from this base class.
 """
 
-import asyncio
 import json
 import logging
 import os
-from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 from strands import Agent
@@ -31,7 +29,7 @@ class BaseAgent(MultiAgentBase):
 
     1. **Clean Interface**: Provides a consistent interface for our existing codebase
     2. **Model Provider Abstraction**: Handles complexities of different providers (LM Studio, Bedrock, etc.)
-    3. **Backward Compatibility**: Maintains existing method signatures (invoke, invoke_async_legacy)
+    3. **Backward Compatibility**: Maintains existing method signatures (invoke_async_legacy)
     4. **Test Compatibility**: Works with existing comprehensive test suite
     5. **Logging Integration**: Adds custom logging and prompt tracking on top of Strands
 
@@ -254,25 +252,6 @@ Be professional but thorough in your analysis."""
 
         return config
 
-    def invoke(self, prompt: str, prompt_type: str = "invoke") -> str:
-        """Invoke the agent with a prompt and return the response.
-
-        Args:
-            prompt: The prompt to send to the agent
-            prompt_type: Type of prompt for logging purposes
-
-        Returns:
-            Response from the agent
-        """
-        # Log the prompt to the dedicated agent log
-        self._log_prompt(prompt, prompt_type)
-
-        # Get response from the Strands agent
-        result = self.agent(prompt)
-
-        # Extract the message content from the result
-        return self._extract_response(result)
-
     async def invoke_async_legacy(
         self, prompt: str, prompt_type: str = "invoke_async"
     ) -> str:
@@ -341,7 +320,7 @@ Be professional but thorough in your analysis."""
         }
 
     def __call__(self, task: str | List[ContentBlock], **kwargs) -> MultiAgentResult:
-        """Process task synchronously (required by MultiAgentBase).
+        """Process task synchronously by running async method (required by MultiAgentBase).
 
         Args:
             task: Input content to process
@@ -350,7 +329,9 @@ Be professional but thorough in your analysis."""
         Returns:
             MultiAgentResult with processing results
         """
-        return asyncio.run(self.invoke_async_graph(task, **kwargs))
+        import asyncio
+
+        return asyncio.run(self.invoke_async(task, **kwargs))
 
     async def invoke_async(
         self, task: str | List[ContentBlock], **kwargs

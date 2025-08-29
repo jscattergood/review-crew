@@ -42,8 +42,7 @@ help:
 	@echo "  run-example      Run example integration test"
 	@echo "  review           Run content review (use ARGS='content')"
 	@echo "  review-lm        Run review with LM Studio (use ARGS='content')"
-	@echo "  review-async     Run async review (faster, parallel agents)"
-	@echo "  review-lm-async  Run async review with LM Studio (fastest)"
+
 	@echo "  agents           List available review agents"
 	@echo "  cli-status       Show CLI status and configuration"
 
@@ -85,7 +84,7 @@ persona-types:
 lint:
 	@echo "🔍 Running linting..."
 	@if command -v flake8 >/dev/null 2>&1; then \
-		flake8 src/ --max-line-length=88 --extend-ignore=E203,W503; \
+		flake8 src/; \
 	else \
 		echo "flake8 not installed. Run 'make dev-install' first."; \
 	fi
@@ -120,13 +119,7 @@ review-lm:
 	@echo "🎭 Starting Review-Crew with LM Studio..."
 	$(call run_with_env,python -m src.cli.main review $(ARGS) --provider lm_studio,python3 -m src.cli.main review $(ARGS) --provider lm_studio)
 
-review-async:
-	@echo "🎭 Starting Review-Crew CLI (async mode)..."
-	$(call run_with_env,python -m src.cli.main review $(ARGS) --async-mode,python3 -m src.cli.main review $(ARGS) --async-mode)
 
-review-lm-async:
-	@echo "🎭 Starting Review-Crew with LM Studio (async mode)..."
-	$(call run_with_env,python -m src.cli.main review $(ARGS) --provider lm_studio --async-mode,python3 -m src.cli.main review $(ARGS) --provider lm_studio --async-mode)
 
 agents:
 	@echo "🎭 Available agents:"

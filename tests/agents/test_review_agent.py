@@ -42,10 +42,11 @@ class TestReviewAgent:
         assert agent.persona == mock_persona
         assert agent.persona.name == "Test Reviewer"
 
-    def test_review_with_error_content(self, agent):
+    @pytest.mark.asyncio
+    async def test_review_with_error_content(self, agent):
         """Test review with error content."""
         error_content = "ERROR_NO_CONTENT"
-        result = agent.review(error_content)
+        result = await agent.review(error_content)
         
         assert "No essay content was provided for review" in result
 
@@ -53,7 +54,7 @@ class TestReviewAgent:
     async def test_review_async_with_error_content(self, agent):
         """Test async review with error content."""
         error_content = "ERROR_NO_CONTENT"
-        result = await agent.review_async(error_content)
+        result = await agent.review(error_content)
         
         assert "No essay content was provided for review" in result
 
@@ -64,7 +65,7 @@ class TestReviewAgent:
     async def test_review_async_basic(self, agent):
         """Test basic async review method."""
         content = "Test content to review"
-        result = await agent.review_async(content)
+        result = await agent.review(content)
         
         assert result == "Test async review result"
         # Verify the async agent was called
@@ -73,8 +74,8 @@ class TestReviewAgent:
     @pytest.mark.asyncio
     async def test_invoke_async_graph(self, agent):
         """Test graph-compatible async invoke method."""
-        # Mock the review_async method
-        with patch.object(agent, 'review_async', new_callable=AsyncMock) as mock_review:
+        # Mock the review method
+        with patch.object(agent, 'review', new_callable=AsyncMock) as mock_review:
             mock_review.return_value = "Graph review result"
             
             result = await agent.invoke_async_graph("test content")
@@ -84,7 +85,7 @@ class TestReviewAgent:
             assert hasattr(result, 'execution_time')
             assert hasattr(result, 'execution_count')
             
-            # Verify review_async was called
+            # Verify review was called
             mock_review.assert_called_once_with("test content")
 
     @pytest.mark.asyncio
