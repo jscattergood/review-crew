@@ -122,9 +122,7 @@ make review ARGS='"Hello world, this is my content to review"'
 # Review with LM Studio (local LLM) - RECOMMENDED
 make review-lm ARGS='"Your content here"'
 
-# Fast async reviews (parallel agents)
-make review-async ARGS='"Your content here"'
-make review-lm-async ARGS='"Your content here"'  # Fastest option!
+# All reviews now run asynchronously with parallel agents for maximum performance
 
 # Review a file
 make review ARGS='"$(cat path/to/your/file.txt)"'
@@ -134,10 +132,10 @@ make review-lm ARGS='path/to/file.txt --output results.txt'
 
 # Multi-document reviews
 make review-lm ARGS='project-docs/'
-make review-lm-async ARGS='document-collection/ --output comprehensive_review.md'
+make review-lm ARGS='document-collection/ --output comprehensive_review.md'
 
 # Pipe content with options
-cat essay.txt | make review-lm-async ARGS='--output results.txt --async-mode'
+cat essay.txt | make review-lm ARGS='--output results.txt'
 ```
 
 **Important:** Makefile commands use `ARGS='...'` syntax, not direct command-line arguments.
@@ -149,7 +147,7 @@ python -m src.cli.main review path/to/your/file.txt
 
 # Multi-document review
 python -m src.cli.main review project-docs/
-python -m src.cli.main review document-collection/ --provider lm_studio --async-mode
+python -m src.cli.main review document-collection/ --provider lm_studio
 
 # Pipe content from stdin
 cat essay.txt | python -m src.cli.main review
@@ -163,8 +161,7 @@ python -m src.cli.main review "content" --provider lm_studio
 python -m src.cli.main review "content" --provider ollama
 python -m src.cli.main review "content" --provider bedrock  # default
 
-# Run async reviews (faster)
-python -m src.cli.main review "content" --async-mode
+# All reviews now run asynchronously with parallel processing for optimal performance
 
 # Save results to file
 python -m src.cli.main review "content" -o results.txt
@@ -197,8 +194,8 @@ python -m src.cli.main review project-docs/
 # With LM Studio (recommended)
 make review-lm ARGS='project-docs/'
 
-# Async multi-document review (fastest)
-make review-lm-async ARGS='project-docs/'
+# Multi-document review with async parallel processing
+make review-lm ARGS='project-docs/'
 ```
 
 ### Manifest Configuration
@@ -328,7 +325,7 @@ Define how documents relate to guide reviewer focus:
 make review-lm ARGS='project-docs/'
 
 # Review technical documentation
-python -m src.cli.main review technical-docs/ --provider lm_studio --async-mode
+python -m src.cli.main review technical-docs/ --provider lm_studio
 
 # Review with specific output
 python -m src.cli.main review document-collection/ -o comprehensive_review.md
@@ -540,7 +537,7 @@ For models with smaller context windows, the system automatically handles large 
 ```bash
 # Core options
 --provider PROVIDER          # bedrock, lm_studio, ollama (default: bedrock)
---async-mode                 # Run reviews in parallel (faster)
+# All reviews now run asynchronously with parallel processing by default
 --output FILE                # Save results to file
 --no-content                 # Hide original content in output
 
