@@ -155,7 +155,7 @@ class DocumentValidator:
                     missing_results,
                     DocumentMetadata(0, 0, 0, 0),
                 )
-
+        print(f"Validation results: {results}")
         return results
 
     def _validate_file_format(self, file_path: Path) -> List[ValidationResult]:

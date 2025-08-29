@@ -5,7 +5,7 @@ This module provides the ReviewGraphBuilder class that constructs Strands graphs
 using our refactored agents that directly inherit from MultiAgentBase.
 """
 
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 from strands.multiagent import GraphBuilder
@@ -516,70 +516,8 @@ class ReviewGraphBuilder:
             ],
         }
 
-    def create_conditional_edge_function(
-        self, condition_type: str, **kwargs
-    ) -> Callable[[MultiAgentResult], bool]:
-        """Create conditional edge functions for dynamic graph routing.
-
-        Args:
-            condition_type: Type of condition ("document_type", "has_context", etc.)
-            **kwargs: Additional parameters for the condition
-
-        Returns:
-            Callable condition function for use in graph edges
-        """
-        if condition_type == "document_type":
-            expected_type = kwargs.get("expected_type", "multi")
-
-            def document_type_condition(result: MultiAgentResult) -> bool:
-                """Check if document type matches expected type."""
-                doc_processor_result = result.results.get("document_processor")
-                if not doc_processor_result:
-                    return False
-
-                # Extract document processor result from state
-                doc_result = doc_processor_result.result.state.get(
-                    "document_processor_result"
-                )
-                if not doc_result:
-                    return False
-
-                return doc_result.document_type == expected_type
-
-            return document_type_condition
-
-        elif condition_type == "has_context":
-
-            def has_context_condition(result: MultiAgentResult) -> bool:
-                """Check if context processing was successful."""
-                for node_id, node_result in result.results.items():
-                    if node_id.startswith("contextualizer_") or any(
-                        agent.name == node_id for agent in self.context_agents
-                    ):
-                        agent_state = node_result.result.state
-                        if agent_state.get("response"):
-                            return True
-                return False
-
-            return has_context_condition
-
-        elif condition_type == "reviews_successful":
-            min_reviews = kwargs.get("min_reviews", 1)
-
-            def reviews_successful_condition(result: MultiAgentResult) -> bool:
-                """Check if minimum number of reviews were successful."""
-                successful_reviews = 0
-                for node_id, node_result in result.results.items():
-                    if any(agent.name == node_id for agent in self.review_agents):
-                        if not node_result.result.state.get("error"):
-                            successful_reviews += 1
-
-                return successful_reviews >= min_reviews
-
-            return reviews_successful_condition
-
-        else:
-            raise ValueError(f"Unknown condition type: {condition_type}")
+    # Note: Conditional edges were planned but Strands GraphBuilder doesn't support
+    # add_conditional_edge method. All edges are currently unconditional.
 
     async def execute_graph(self, graph, input_data: Any) -> MultiAgentResult:
         """Execute a graph with input data.

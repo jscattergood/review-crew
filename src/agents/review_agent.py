@@ -38,6 +38,10 @@ class ReviewAgent(BaseAgent):
         Returns:
             Review feedback from the agent
         """
+        # Check if we received an error instead of content
+        if content == "ERROR_NO_CONTENT":
+            return "No essay content was provided for review. Please submit your essay text for evaluation."
+
         # Format the prompt with the content
         prompt = self.persona.prompt_template.format(content=content)
 
@@ -53,8 +57,108 @@ class ReviewAgent(BaseAgent):
         Returns:
             Review feedback from the agent
         """
+        # Check if we received an error instead of content
+        if content == "ERROR_NO_CONTENT":
+            return "No essay content was provided for review. Please submit your essay text for evaluation."
+
         # Format the prompt with the content
         prompt = self.persona.prompt_template.format(content=content)
 
         # Use the base agent's invoke_async method which handles logging
-        return await self.invoke_async(prompt, "review_async")
+        return await self.invoke_async_legacy(prompt, "review_async")
+
+    async def invoke_async_graph(self, task, **kwargs):
+        """Process task asynchronously for graph execution using specialized review logic.
+
+        Args:
+            task: Input content to process
+            **kwargs: Additional arguments
+
+        Returns:
+            MultiAgentResult with review results
+        """
+        import time
+        from strands.multiagent.base import MultiAgentResult, NodeResult, Status
+        from strands.agent.agent_result import AgentResult
+        from strands.telemetry.metrics import EventLoopMetrics
+        from strands.types.content import ContentBlock, Message
+
+        try:
+            # Extract content from task using base agent logic
+            content = self._extract_content_from_task(task)
+
+            # Process using the specialized review method with timing
+            start_time = time.time()
+            response = await self.review_async(content)
+            execution_time = time.time() - start_time
+
+            # Clean up any raw JSON that might have been generated in the response
+            if response.startswith("{'role':") or response.startswith('{"role":'):
+                try:
+                    # Try to parse the JSON structure and extract the actual text
+                    import ast
+
+                    parsed = ast.literal_eval(response.replace("'", '"'))
+                    if isinstance(parsed, dict) and "content" in parsed:
+                        nested_content = parsed["content"]
+                        if isinstance(nested_content, list) and len(nested_content) > 0:
+                            if (
+                                isinstance(nested_content[0], dict)
+                                and "text" in nested_content[0]
+                            ):
+                                response = nested_content[0]["text"]
+                except:
+                    # If parsing fails, use the original response
+                    pass
+
+            # Create agent result
+            metrics = EventLoopMetrics()
+            agent_result = AgentResult(
+                stop_reason="end_turn",
+                message=Message(
+                    role="assistant", content=[ContentBlock(text=response)]
+                ),
+                metrics=metrics,
+                state={
+                    "agent_name": self.persona.name,
+                    "agent_role": self.persona.role,
+                    "response": response,
+                },
+            )
+
+            # Return wrapped in MultiAgentResult
+            return MultiAgentResult(
+                status=Status.COMPLETED,
+                results={
+                    self.name: NodeResult(result=agent_result, status=Status.COMPLETED)
+                },
+                execution_time=execution_time,
+                execution_count=1,
+            )
+
+        except Exception as e:
+            # Handle errors gracefully
+            return MultiAgentResult(
+                status=Status.FAILED,
+                results={
+                    self.name: NodeResult(
+                        result=AgentResult(
+                            stop_reason="error",
+                            message=Message(
+                                role="assistant",
+                                content=[ContentBlock(text=f"Review failed: {str(e)}")],
+                            ),
+                            metrics=EventLoopMetrics(),
+                            state={
+                                "agent_name": self.persona.name,
+                                "agent_role": self.persona.role,
+                                "error": str(e),
+                                "response": f"Review failed: {str(e)}",
+                            },
+                        ),
+                        status=Status.FAILED,
+                    )
+                },
+                execution_time=0.0,
+                execution_count=1,
+            )

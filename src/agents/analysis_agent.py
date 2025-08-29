@@ -126,7 +126,7 @@ class AnalysisAgent(BaseAgent):
         )
 
         # Get the meta-analysis using the base agent's invoke_async method
-        synthesis = await self.invoke_async(analysis_prompt, "analysis_async")
+        synthesis = await self.invoke_async_legacy(analysis_prompt, "analysis_async")
 
         # Parse the structured response
         return self._parse_meta_analysis_response(synthesis)
@@ -445,3 +445,105 @@ Focus on creating a comprehensive synthesis that captures the full scope of all 
             feedback_text = str(feedback)
 
         return f"**{agent_name}** ({agent_role}):\n{feedback_text}\n\n"
+
+    async def invoke_async_graph(self, task, **kwargs):
+        """Process task asynchronously for graph execution using specialized analysis logic.
+
+        Args:
+            task: Input content to process
+            **kwargs: Additional arguments
+
+        Returns:
+            MultiAgentResult with analysis results
+        """
+        import time
+        from strands.multiagent.base import MultiAgentResult, NodeResult, Status
+        from strands.agent.agent_result import AgentResult
+        from strands.telemetry.metrics import EventLoopMetrics
+        from strands.types.content import ContentBlock, Message
+
+        try:
+            # Extract content from task using base agent logic
+            content = self._extract_content_from_task(task)
+
+            # Check if content indicates an error
+            if content == "ERROR_NO_CONTENT":
+                # Return a simple analysis indicating no content was provided
+                analysis_result = AnalysisResult(
+                    synthesis="No content was provided for analysis. Please ensure valid documents are available for review."
+                )
+                execution_time = 0
+            else:
+                # Convert string content to review format for analysis
+                # For now, treat the entire content as a single "review"
+                reviews = [
+                    {
+                        "agent_name": "Combined Reviews",
+                        "agent_role": "Multiple Reviewers",
+                        "feedback": content,
+                        "error": None,
+                    }
+                ]
+
+                # Process using the specialized analysis method with timing
+                start_time = time.time()
+                analysis_result = await self.analyze_async(reviews)
+                execution_time = time.time() - start_time
+
+            # Format analysis result as text for the response
+            response = analysis_result.synthesis
+
+            # Create agent result
+            metrics = EventLoopMetrics()
+            agent_result = AgentResult(
+                stop_reason="end_turn",
+                message=Message(
+                    role="assistant", content=[ContentBlock(text=response)]
+                ),
+                metrics=metrics,
+                state={
+                    "agent_name": self.persona.name,
+                    "agent_role": self.persona.role,
+                    "response": response,
+                    "analysis_result": analysis_result,
+                },
+            )
+
+            # Return wrapped in MultiAgentResult
+            return MultiAgentResult(
+                status=Status.COMPLETED,
+                results={
+                    self.name: NodeResult(result=agent_result, status=Status.COMPLETED)
+                },
+                execution_time=execution_time,
+                execution_count=1,
+            )
+
+        except Exception as e:
+            # Handle errors gracefully
+            return MultiAgentResult(
+                status=Status.FAILED,
+                results={
+                    self.name: NodeResult(
+                        result=AgentResult(
+                            stop_reason="error",
+                            message=Message(
+                                role="assistant",
+                                content=[
+                                    ContentBlock(text=f"Analysis failed: {str(e)}")
+                                ],
+                            ),
+                            metrics=EventLoopMetrics(),
+                            state={
+                                "agent_name": self.persona.name,
+                                "agent_role": self.persona.role,
+                                "error": str(e),
+                                "response": f"Analysis failed: {str(e)}",
+                            },
+                        ),
+                        status=Status.FAILED,
+                    )
+                },
+                execution_time=0.0,
+                execution_count=1,
+            )

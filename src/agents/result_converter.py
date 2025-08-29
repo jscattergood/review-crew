@@ -10,7 +10,7 @@ from datetime import datetime
 
 from strands.multiagent.base import MultiAgentResult, Status
 
-from .conversation_manager import ConversationResult, ReviewResult
+from .data_models import ConversationResult, ReviewResult
 from .analysis_agent import AnalysisResult
 from .context_agent import ContextResult
 from .document_processor_node import DocumentProcessorResult
@@ -37,7 +37,7 @@ class ResultConverter:
         Returns:
             ConversationResult compatible with existing code
         """
-        # Extract components from graph result
+
         reviews = self._extract_reviews(graph_result)
         context_results = self._extract_context_results(graph_result)
         analysis_results = self._extract_analysis_results(graph_result)
@@ -71,12 +71,28 @@ class ResultConverter:
         for node_id, node_result in graph_result.results.items():
             # Skip non-review nodes
             if self._is_review_node(node_id):
-                agent_state = node_result.result.state
+                agent_state = node_result.result.results[node_id].result.state
 
                 # Extract agent information
                 agent_name = agent_state.get("agent_name", node_id)
                 agent_role = agent_state.get("agent_role", "Reviewer")
-                response = agent_state.get("response", "")
+
+                # Try to get clean response from message content first, fallback to state
+                try:
+                    agent_result = node_result.result.results[node_id].result
+                    if agent_result.message and agent_result.message["content"]:
+                        response = agent_result.message["content"][0]["text"]
+
+                        # Check if response is a JSON/dict string and extract clean text
+                        if isinstance(response, str):
+                            parsed_response = self._try_parse_json_response(response)
+                            if parsed_response:
+                                response = parsed_response
+                    else:
+                        response = agent_state.get("response", "")
+                except Exception:
+                    response = agent_state.get("response", "")
+
                 error = agent_state.get("error")
 
                 # Create ReviewResult
@@ -107,12 +123,26 @@ class ResultConverter:
         for node_id, node_result in graph_result.results.items():
             # Skip non-context nodes
             if self._is_context_node(node_id):
-                agent_state = node_result.result.state
+                agent_state = node_result.result.results[node_id].result.state
 
-                # Try to extract ContextResult from state
-                if "response" in agent_state:
-                    # Parse the response to extract context information
-                    response = agent_state["response"]
+                # Try to get clean response from message content first, fallback to state
+                try:
+                    agent_result = node_result.result.results[node_id].result
+                    if agent_result.message and agent_result.message["content"]:
+                        response = agent_result.message["content"][0]["text"]
+
+                        # Check if response is a JSON/dict string and extract clean text
+                        if isinstance(response, str):
+                            parsed_response = self._try_parse_json_response(response)
+                            if parsed_response:
+                                response = parsed_response
+                    else:
+                        response = agent_state.get("response", "")
+                except Exception:
+                    response = agent_state.get("response", "")
+
+                # Try to extract ContextResult from clean response
+                if response:
                     context_result = self._parse_context_response(response)
                     if context_result:
                         context_results.append(context_result)
@@ -135,11 +165,26 @@ class ResultConverter:
         for node_id, node_result in graph_result.results.items():
             # Skip non-analysis nodes
             if self._is_analysis_node(node_id):
-                agent_state = node_result.result.state
+                agent_state = node_result.result.results[node_id].result.state
 
-                # Try to extract AnalysisResult from state
-                if "response" in agent_state:
-                    response = agent_state["response"]
+                # Try to get clean response from message content first, fallback to state
+                try:
+                    agent_result = node_result.result.results[node_id].result
+                    if agent_result.message and agent_result.message["content"]:
+                        response = agent_result.message["content"][0]["text"]
+
+                        # Check if response is a JSON/dict string and extract clean text
+                        if isinstance(response, str):
+                            parsed_response = self._try_parse_json_response(response)
+                            if parsed_response:
+                                response = parsed_response
+                    else:
+                        response = agent_state.get("response", "")
+                except Exception:
+                    response = agent_state.get("response", "")
+
+                # Try to extract AnalysisResult from clean response
+                if response:
                     analysis_result = self._parse_analysis_response(response)
                     if analysis_result:
                         analysis_results.append(analysis_result)
@@ -159,7 +204,7 @@ class ResultConverter:
 
         for node_id, node_result in graph_result.results.items():
             if self._is_analysis_node(node_id):
-                agent_state = node_result.result.state
+                agent_state = node_result.result.results[node_id].result.state
                 error = agent_state.get("error")
                 if error:
                     errors.append(f"{node_id}: {error}")
@@ -181,7 +226,9 @@ class ResultConverter:
         # First try to get compiled content from document processor
         doc_processor_result = graph_result.results.get("document_processor")
         if doc_processor_result:
-            doc_state = doc_processor_result.result.state
+            doc_state = doc_processor_result.result.results[
+                "document_processor"
+            ].result.state
             doc_processor_data = doc_state.get("document_processor_result")
             if doc_processor_data and hasattr(doc_processor_data, "compiled_content"):
                 return doc_processor_data.compiled_content
@@ -236,6 +283,49 @@ class ResultConverter:
             or "analyzer" in node_id.lower()
             or "analysis" in node_id.lower()
         )
+
+    def _try_parse_json_response(self, response: str) -> str:
+        """
+        Try to parse a response string as JSON/dict and extract clean text.
+        Returns the extracted text if successful, None if not a JSON structure.
+        """
+        if not response.strip():
+            return None
+
+        # Try to parse as JSON/dict structure
+        try:
+            import json
+            import ast
+
+            parsed = None
+
+            # First try json.loads (for proper JSON format)
+            try:
+                parsed = json.loads(response)
+            except json.JSONDecodeError:
+                # Fallback to ast.literal_eval for Python dict format
+                try:
+                    parsed = ast.literal_eval(response)
+                except (ValueError, SyntaxError):
+                    # Not a valid JSON/dict structure
+                    return None
+
+            # Check if it has the expected structure and extract clean text
+            if isinstance(parsed, dict) and "content" in parsed:
+                nested_content = parsed["content"]
+                if isinstance(nested_content, list) and len(nested_content) > 0:
+                    if (
+                        isinstance(nested_content[0], dict)
+                        and "text" in nested_content[0]
+                    ):
+                        return nested_content[0]["text"]
+
+            # If structure doesn't match, return None (not a JSON response we care about)
+            return None
+
+        except Exception:
+            # If any parsing fails, it's not a JSON structure we can handle
+            return None
 
     def _parse_context_response(self, response: str) -> Optional[ContextResult]:
         """Parse context agent response into ContextResult.
@@ -336,7 +426,9 @@ class ResultConverter:
         if not doc_processor_result:
             return None
 
-        doc_state = doc_processor_result.result.state
+        doc_state = doc_processor_result.result.results[
+            "document_processor"
+        ].result.state
         doc_processor_data = doc_state.get("document_processor_result")
 
         if not doc_processor_data:

@@ -6,13 +6,15 @@ operations including loading, manifest processing, and validation.
 """
 
 import asyncio
-from typing import List, Dict, Any, Optional
+import json
+from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from pathlib import Path
 
 from strands.multiagent.base import MultiAgentBase, NodeResult, Status, MultiAgentResult
 from strands.agent.agent_result import AgentResult
 from strands.types.content import ContentBlock, Message
+from ..validation.document_validator import ValidationLevel, DocumentValidator
 
 
 @dataclass
@@ -47,7 +49,7 @@ class DocumentProcessorNode(MultiAgentBase):
         super().__init__()
         self.name = name
 
-    def __call__(self, task, **kwargs) -> MultiAgentResult:
+    def __call__(self, task: str | List[ContentBlock], **kwargs) -> MultiAgentResult:
         """Process documents synchronously.
 
         Args:
@@ -60,9 +62,12 @@ class DocumentProcessorNode(MultiAgentBase):
         # Run the async method synchronously
         import asyncio
 
+        print(f"Call dump: {json.dumps(task, indent=2)}")
         return asyncio.run(self.invoke_async(task, **kwargs))
 
-    async def invoke_async(self, task, **kwargs) -> MultiAgentResult:
+    async def invoke_async(
+        self, task: str | list[ContentBlock], **kwargs
+    ) -> MultiAgentResult:
         """Process documents asynchronously.
 
         Args:
@@ -74,7 +79,11 @@ class DocumentProcessorNode(MultiAgentBase):
         """
         try:
             # Determine if input is a path or content
-            task_str = str(task)
+            if isinstance(task, str):
+                task_str = task
+            elif isinstance(task, list):
+                task_str = task[0].get("text")
+
             content_path = Path(task_str)
 
             # Check if this looks like a file path (absolute or has path separators)
@@ -100,22 +109,22 @@ class DocumentProcessorNode(MultiAgentBase):
                 # Direct content processing
                 result = await self._process_direct_content(task_str)
 
-            # Create agent result with metadata in the message
-            message_text = f"Processed {result.document_type} document(s). Found {len(result.documents)} documents."
-            if result.manifest_config:
-                message_text += " Used manifest configuration."
-            if result.validation_results:
-                message_text += " Validation completed."
-
+            # Create agent result with the compiled content in the message
+            # This is what the downstream agents will receive as input
             agent_result = AgentResult(
                 stop_reason="end_turn",
                 message=Message(
-                    role="assistant", content=[ContentBlock(text=message_text)]
+                    role="assistant",
+                    content=[ContentBlock(text=result.compiled_content)],
                 ),
                 metrics={},
                 state={
-                    "document_processor_result": result
-                },  # Store our metadata in state
+                    "document_processor_result": result,  # Store metadata for debugging
+                    "document_type": result.document_type,
+                    "document_count": len(result.documents),
+                    "manifest_config": result.manifest_config,
+                    "enhanced_manifest": result.enhanced_manifest,
+                },
             )
 
             # Return wrapped in MultiAgentResult
@@ -127,14 +136,12 @@ class DocumentProcessorNode(MultiAgentBase):
             )
 
         except Exception as e:
-            # Handle errors gracefully
+            # Handle errors gracefully - return a clear error marker
             agent_result = AgentResult(
                 stop_reason="error",
                 message=Message(
                     role="assistant",
-                    content=[
-                        ContentBlock(text=f"Document processing failed: {str(e)}")
-                    ],
+                    content=[ContentBlock(text="ERROR_NO_CONTENT")],
                 ),
                 metrics={},
                 state={"error": str(e)},
@@ -198,7 +205,22 @@ class DocumentProcessorNode(MultiAgentBase):
         compiled_content = self._compile_documents_for_review(documents)
 
         # Run validation if available
-        validation_results = self._validate_document_collection(directory_path)
+        enhanced_manifest_for_validation = None
+        manifest_path = directory_path / "manifest.yaml"
+        if manifest_path.exists():
+            if "enhanced_manifest" in locals():
+                # Use enhanced manifest which includes original config plus processed data
+                enhanced_manifest_for_validation = enhanced_manifest
+            else:
+                # Fallback: create enhanced manifest with just the original config
+                manifest_config = self._load_manifest(manifest_path)
+                enhanced_manifest_for_validation = {
+                    "original_manifest": manifest_config
+                }
+
+        validation_results = self._validate_loaded_documents(
+            documents, enhanced_manifest_for_validation
+        )
         if validation_results:
             self._report_validation_results(validation_results)
 
@@ -669,47 +691,49 @@ class DocumentProcessorNode(MultiAgentBase):
 
         return processed_output
 
-    def _validate_document_collection(
-        self, directory_path: Path
+    def _validate_loaded_documents(
+        self,
+        loaded_documents: List[Dict[str, str]],
+        enhanced_manifest: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Validate document collection using the validation pipeline.
+        """Validate loaded documents against manifest expectations.
 
         Args:
-            directory_path: Path to directory containing documents
+            loaded_documents: List of successfully loaded documents
+            enhanced_manifest: Enhanced manifest containing original config and processed data
 
         Returns:
             Validation results dictionary or None if validation disabled
         """
         try:
-            from ..validation.document_validator import DocumentValidator
-
-            # Load validation configuration from manifest if available
-            manifest_path = directory_path / "manifest.yaml"
+            # Extract validation configuration from enhanced manifest
             validation_config = {}
-
-            if manifest_path.exists():
-                manifest = self._load_manifest(manifest_path)
-                processing_config = manifest.get("review_configuration", {}).get(
-                    "processing", {}
+            if enhanced_manifest:
+                # Get original manifest config
+                original_manifest = enhanced_manifest.get(
+                    "original_manifest", enhanced_manifest
                 )
-
-                # Extract validation-relevant settings
+                processing_config = original_manifest.get(
+                    "review_configuration", {}
+                ).get("processing", {})
                 if "max_content_length" in processing_config:
                     # Convert to word count (rough estimate: 5 chars per word)
                     validation_config["max_word_count"] = (
                         processing_config["max_content_length"] // 5
                     )
 
-            validator = DocumentValidator(validation_config)
+            # For now, focus on manifest compliance validation
+            # Individual document content validation would require file paths, not just content
+            validation_results = {}
 
-            # Get manifest config for expected documents
-            manifest_config = None
-            if manifest_path.exists():
-                manifest_config = self._load_manifest(manifest_path)
+            # Check manifest expectations vs loaded documents
+            if enhanced_manifest:
+                collection_issues = self._check_manifest_compliance(
+                    loaded_documents, enhanced_manifest
+                )
+                if collection_issues:
+                    validation_results["_collection_issues"] = collection_issues
 
-            validation_results = validator.validate_document_collection(
-                directory_path, manifest_config
-            )
             return validation_results
 
         except ImportError:
@@ -718,6 +742,120 @@ class DocumentProcessorNode(MultiAgentBase):
         except Exception as e:
             print(f"⚠️  Document validation failed: {e}")
             return None
+
+    def _check_manifest_compliance(
+        self, loaded_documents: List[Dict[str, str]], enhanced_manifest: Dict[str, Any]
+    ) -> Optional[Tuple[List, Any]]:
+        """Check if loaded documents comply with manifest expectations.
+
+        Args:
+            loaded_documents: List of successfully loaded documents
+            enhanced_manifest: Enhanced manifest with original config and processed data
+
+        Returns:
+            Tuple of (validation_results, metadata) or None
+        """
+        from ..validation.document_validator import (
+            ValidationResult,
+            ValidationLevel,
+            DocumentMetadata,
+        )
+
+        issues = []
+        loaded_manifest_paths = {
+            doc.get("manifest_path")
+            for doc in loaded_documents
+            if doc.get("manifest_path")
+        }
+
+        # Get original manifest config
+        original_manifest = enhanced_manifest.get(
+            "original_manifest", enhanced_manifest
+        )
+        review_config = original_manifest.get("review_configuration", {})
+        doc_config = review_config.get("documents", {})
+        # Check primary document
+        primary_doc = doc_config.get("primary")
+        if primary_doc and primary_doc not in loaded_manifest_paths:
+            issues.append(
+                ValidationResult(
+                    level=ValidationLevel.ERROR,
+                    message=f"Expected primary document missing: {primary_doc}",
+                    suggestion=f"Add the missing primary document: {primary_doc}",
+                )
+            )
+
+        # Check supporting documents
+        supporting_docs = doc_config.get("supporting", [])
+        for supporting_doc in supporting_docs:
+            if supporting_doc not in loaded_manifest_paths:
+                issues.append(
+                    ValidationResult(
+                        level=ValidationLevel.ERROR,
+                        message=f"Expected supporting document missing: {supporting_doc}",
+                        suggestion=f"Add the missing supporting document: {supporting_doc}",
+                    )
+                )
+
+        # Check context files using enhanced manifest if available
+        if enhanced_manifest:
+            # Check processed context files from enhanced manifest
+            processed_context = enhanced_manifest.get("review_configuration", {}).get(
+                "processed_context", []
+            )
+            expected_context_files = doc_config.get("context_files", [])
+            for expected_context in expected_context_files:
+                expected_path = (
+                    expected_context.get("path")
+                    if isinstance(expected_context, dict)
+                    else expected_context
+                )
+
+                # Check if this context file was successfully loaded
+                context_loaded = any(
+                    ctx.get("path") == expected_path and ctx.get("loaded", False)
+                    for ctx in processed_context
+                )
+
+                if not context_loaded:
+                    issues.append(
+                        ValidationResult(
+                            level=ValidationLevel.WARNING,
+                            message=f"Expected context file missing: {expected_path}",
+                            suggestion=f"Add the missing context file: {expected_path}",
+                        )
+                    )
+        else:
+            # Fallback: Check context files using original method
+            context_files = doc_config.get("context_files", [])
+            for context_file in context_files:
+                context_path = (
+                    context_file.get("path")
+                    if isinstance(context_file, dict)
+                    else context_file
+                )
+                if context_path and context_path not in loaded_manifest_paths:
+                    issues.append(
+                        ValidationResult(
+                            level=ValidationLevel.WARNING,
+                            message=f"Expected context file missing: {context_path}",
+                            suggestion=f"Add the missing context file: {context_path}",
+                        )
+                    )
+
+        if issues:
+            metadata = DocumentMetadata(
+                word_count=0,
+                character_count=0,
+                paragraph_count=0,
+                sentence_count=0,
+                reading_level=None,
+                detected_language="en",
+                format_type="text",
+            )
+            return (issues, metadata)
+
+        return None
 
     def _report_validation_results(self, validation_results: Dict[str, Any]) -> None:
         """Report validation results to user.
@@ -728,47 +866,58 @@ class DocumentProcessorNode(MultiAgentBase):
         if not validation_results:
             return
 
-        # Count issues by severity
-        total_errors = 0
-        total_warnings = 0
-        total_info = 0
+        # Counters and categorized issues
+        total_errors = total_warnings = total_info = 0
+        file_issues = []  # Store (filename, errors, warnings) for later reporting
 
+        # Single pass through all validation results
         for filename, (results, metadata) in validation_results.items():
-            if filename.startswith("_"):
+            if not results:
                 continue
 
-            for result in results:
-                if result.level.value == "error":
-                    total_errors += 1
-                elif result.level.value == "warning":
-                    total_warnings += 1
-                elif result.level.value == "info":
-                    total_info += 1
+            # Categorize results by level
+            errors = [r for r in results if r.level == ValidationLevel.ERROR]
+            warnings = [r for r in results if r.level == ValidationLevel.WARNING]
+            info = [r for r in results if r.level == ValidationLevel.INFO]
+
+            # Update counts
+            total_errors += len(errors)
+            total_warnings += len(warnings)
+            total_info += len(info)
+
+            # Handle collection-level issues immediately
+            if filename.startswith("_") and filename == "_collection_issues":
+                if errors or warnings or info:
+                    print("\n🔍 Document Collection Issues:")
+                    for error in errors:
+                        print(f"  ❌ {error.message}")
+                    for warning in warnings:
+                        print(f"  ⚠️  {warning.message}")
+                    for item in info:
+                        print(f"  ℹ️  {item.message}")
+            elif not filename.startswith("_") and (errors or warnings):
+                # Store file-level issues for later reporting
+                file_issues.append((filename, errors, warnings))
 
         # Report summary
-        if total_errors > 0:
-            print(f"❌ Document validation found {total_errors} errors")
-        if total_warnings > 0:
-            print(f"⚠️  Document validation found {total_warnings} warnings")
-        if total_info > 0:
-            print(f"ℹ️  Document validation found {total_info} information items")
-
         if total_errors == 0 and total_warnings == 0 and total_info == 0:
             print("✅ All documents passed validation")
+        else:
+            summary_parts = []
+            if total_errors > 0:
+                summary_parts.append(f"{total_errors} errors")
+            if total_warnings > 0:
+                summary_parts.append(f"{total_warnings} warnings")
+            if total_info > 0:
+                summary_parts.append(f"{total_info} info items")
+            print(f"📋 Document validation found: {', '.join(summary_parts)}")
 
-        # Report specific issues for errors and warnings
-        for filename, (results, metadata) in validation_results.items():
-            if filename.startswith("_"):
-                continue
-
-            errors = [r for r in results if r.level.value == "error"]
-            warnings = [r for r in results if r.level.value == "warning"]
-
-            if errors or warnings:
-                print(f"📄 {filename}:")
-                for error in errors:
-                    print(f"  ❌ {error.message}")
-                for warning in warnings:
-                    print(f"  ⚠️  {warning.message}")
+        # Report file-specific issues
+        for filename, errors, warnings in file_issues:
+            print(f"📄 {filename}:")
+            for error in errors:
+                print(f"  ❌ {error.message}")
+            for warning in warnings:
+                print(f"  ⚠️  {warning.message}")
 
         print()  # Add spacing after validation report

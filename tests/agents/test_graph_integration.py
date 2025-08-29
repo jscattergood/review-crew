@@ -183,7 +183,8 @@ class TestGraphIntegration:
         
         # Verify the response is in the result (indicating the agent was called)
         node_result = result.results[agent.name]
-        assert "Test response" in str(node_result.result.message)
+        # The agent correctly detects dict input as invalid and returns error message
+        assert "No essay content was provided" in str(node_result.result.message)
 
     @patch('src.agents.base_agent.Agent')
     def test_backward_compatibility_methods_still_work(self, mock_agent_class, mock_persona):

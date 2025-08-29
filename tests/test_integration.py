@@ -2,7 +2,7 @@
 
 import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, AsyncMock
 
 from src.agents.conversation_manager import ConversationManager
 from src.config.persona_loader import PersonaLoader
@@ -76,14 +76,29 @@ def register_user(email, password):
         # Mock the Strands Agent and ReviewAgent to avoid actual LLM calls
         with patch('src.agents.base_agent.Agent') as mock_agent_class, \
              patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class:
+            
+            # Mock the Strands Agent class to return an awaitable agent
+            mock_strands_agent = Mock()
+            mock_strands_agent.invoke_async = AsyncMock(return_value="MOCK REVIEW: This is a mock review response with security and technical feedback.")
+            mock_strands_agent.__call__ = Mock(return_value="MOCK REVIEW: This is a mock review response with security and technical feedback.")
+            mock_agent_class.return_value = mock_strands_agent
+            
             # Create a single mock ReviewAgent that can handle multiple calls
             mock_review_agent = Mock()
+            # Mock the async method that's actually called by the graph execution
+            mock_review_agent.invoke_async_legacy = AsyncMock(return_value="MOCK REVIEW: This is a mock review response with security and technical feedback.")
             mock_review_agent.review.return_value = "MOCK REVIEW: This is a mock review response with security and technical feedback."
             mock_review_agent.get_info.return_value = {
                 'name': 'Mock Agent',
                 'role': 'Mock Reviewer',
                 'goal': 'Provide mock feedback'
             }
+            mock_review_agent.persona = Mock()
+            mock_review_agent.persona.name = 'Mock Agent'
+            mock_review_agent.persona.role = 'Mock Reviewer'
+            mock_review_agent.name = 'mock_agent'
+            # Set the mocked Strands agent on the review agent
+            mock_review_agent.agent = mock_strands_agent
             
             # Return the same mock for any number of agents
             mock_review_agent_class.return_value = mock_review_agent
@@ -130,10 +145,22 @@ def register_user(email, password):
              patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class, \
              patch('src.agents.conversation_manager.ContextAgent') as mock_context_agent_class:
             
+            # Mock the Strands Agent class to return an awaitable agent
+            mock_strands_agent = Mock()
+            mock_strands_agent.invoke_async = AsyncMock(return_value="Review with context completed")
+            mock_strands_agent.__call__ = Mock(return_value="Review with context completed")
+            mock_agent_class.return_value = mock_strands_agent
+            
             # Mock ReviewAgent
             mock_review_agent = Mock()
+            mock_review_agent.invoke_async_legacy = AsyncMock(return_value="Review with context completed")
             mock_review_agent.review.return_value = "Review with context completed"
             mock_review_agent.get_info.return_value = {'name': 'Mock Agent', 'role': 'Mock Reviewer', 'goal': 'Mock Goal'}
+            mock_review_agent.persona = Mock()
+            mock_review_agent.persona.name = 'Mock Agent'
+            mock_review_agent.persona.role = 'Mock Reviewer'
+            mock_review_agent.name = 'mock_agent'
+            mock_review_agent.agent = mock_strands_agent
             mock_review_agent_class.return_value = mock_review_agent
             
             # Mock ContextAgent
@@ -186,13 +213,25 @@ curl -X POST api.example.com/register -d "email=user@example.com"
         with patch('src.agents.base_agent.Agent') as mock_agent_class, \
              patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class:
             
+            # Mock the Strands Agent class to return an awaitable agent
+            mock_strands_agent = Mock()
+            mock_strands_agent.invoke_async = AsyncMock(return_value="MOCK FILE REVIEW: This API documentation has security issues.")
+            mock_strands_agent.__call__ = Mock(return_value="MOCK FILE REVIEW: This API documentation has security issues.")
+            mock_agent_class.return_value = mock_strands_agent
+            
             mock_review_agent = Mock()
+            mock_review_agent.invoke_async_legacy = AsyncMock(return_value="MOCK FILE REVIEW: This API documentation has security issues.")
             mock_review_agent.review.return_value = "MOCK FILE REVIEW: This API documentation has security issues."
             mock_review_agent.get_info.return_value = {
                 'name': 'File Review Agent',
                 'role': 'File Content Reviewer',
                 'goal': 'Review file-based content'
             }
+            mock_review_agent.persona = Mock()
+            mock_review_agent.persona.name = 'File Review Agent'
+            mock_review_agent.persona.role = 'File Content Reviewer'
+            mock_review_agent.name = 'file_review_agent'
+            mock_review_agent.agent = mock_strands_agent
             
             mock_review_agent_class.return_value = mock_review_agent
             
@@ -231,14 +270,26 @@ curl -X POST api.example.com/register -d "email=user@example.com"
         with patch('src.agents.base_agent.Agent') as mock_agent_class, \
              patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class:
             
+            # Mock the Strands Agent class to return an awaitable agent
+            mock_strands_agent = Mock()
+            mock_strands_agent.invoke_async = AsyncMock(return_value="SECURITY REVIEW: Critical security vulnerabilities found including MD5 password hashing and plaintext password logging. TECHNICAL REVIEW: Code quality issues detected - missing error handling and input validation best practices.")
+            mock_strands_agent.__call__ = Mock(return_value="SECURITY REVIEW: Critical security vulnerabilities found including MD5 password hashing and plaintext password logging. TECHNICAL REVIEW: Code quality issues detected - missing error handling and input validation best practices.")
+            mock_agent_class.return_value = mock_strands_agent
+            
             # Create mock ReviewAgent with expected feedback patterns
             mock_review_agent = Mock()
+            mock_review_agent.invoke_async_legacy = AsyncMock(return_value="SECURITY REVIEW: Critical security vulnerabilities found including MD5 password hashing and plaintext password logging. TECHNICAL REVIEW: Code quality issues detected - missing error handling and input validation best practices.")
             mock_review_agent.review.return_value = "SECURITY REVIEW: Critical security vulnerabilities found including MD5 password hashing and plaintext password logging. TECHNICAL REVIEW: Code quality issues detected - missing error handling and input validation best practices."
             mock_review_agent.get_info.return_value = {
                 'name': 'Pattern Test Agent',
                 'role': 'Pattern Reviewer', 
                 'goal': 'Test feedback patterns'
             }
+            mock_review_agent.persona = Mock()
+            mock_review_agent.persona.name = 'Pattern Test Agent'
+            mock_review_agent.persona.role = 'Pattern Reviewer'
+            mock_review_agent.name = 'pattern_test_agent'
+            mock_review_agent.agent = mock_strands_agent
             
             # Return the same mock for any number of agents
             mock_review_agent_class.return_value = mock_review_agent

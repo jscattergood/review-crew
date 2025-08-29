@@ -1,7 +1,7 @@
 """Agent implementations for Review-Crew."""
 
 # Import core data structures that don't require external dependencies
-from .conversation_manager import ReviewResult, ConversationResult
+from .data_models import ReviewResult, ConversationResult
 
 # Import analysis components
 try:

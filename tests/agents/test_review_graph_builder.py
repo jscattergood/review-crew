@@ -341,75 +341,13 @@ class TestReviewGraphBuilder:
         assert "role" in reviewer_info
         assert "goal" in reviewer_info
     
-    def test_create_conditional_edge_function_document_type(self, builder):
-        """Test creating document type conditional edge function."""
-        condition_func = builder.create_conditional_edge_function(
-            "document_type",
-            expected_type="multi"
-        )
-        
-        # Mock MultiAgentResult with document processor result
-        mock_result = Mock(spec=MultiAgentResult)
-        mock_node_result = Mock()
-        mock_agent_result = Mock()
-        mock_doc_result = Mock()
-        mock_doc_result.document_type = "multi"
-        
-        mock_agent_result.state = {"document_processor_result": mock_doc_result}
-        mock_node_result.result = mock_agent_result
-        mock_result.results = {"document_processor": mock_node_result}
-        
-        assert condition_func(mock_result) is True
-        
-        # Test with different document type
-        mock_doc_result.document_type = "single"
-        assert condition_func(mock_result) is False
+    # Note: Conditional edge tests removed - Strands doesn't support conditional edges
     
-    def test_create_conditional_edge_function_has_context(self, builder):
-        """Test creating has context conditional edge function."""
-        condition_func = builder.create_conditional_edge_function("has_context")
-        
-        # Mock MultiAgentResult with successful context result
-        mock_result = Mock(spec=MultiAgentResult)
-        mock_node_result = Mock()
-        mock_agent_result = Mock()
-        
-        mock_agent_result.state = {"response": "context data"}
-        mock_node_result.result = mock_agent_result
-        mock_result.results = {builder.context_agents[0].name: mock_node_result}
-        
-        assert condition_func(mock_result) is True
-        
-        # Test with no context data
-        mock_agent_result.state = {"response": None}
-        assert condition_func(mock_result) is False
+
     
-    def test_create_conditional_edge_function_reviews_successful(self, builder):
-        """Test creating reviews successful conditional edge function."""
-        condition_func = builder.create_conditional_edge_function(
-            "reviews_successful",
-            min_reviews=1
-        )
-        
-        # Mock MultiAgentResult with successful reviews
-        mock_result = Mock(spec=MultiAgentResult)
-        mock_node_result = Mock()
-        mock_agent_result = Mock()
-        
-        mock_agent_result.state = {}  # No error means success
-        mock_node_result.result = mock_agent_result
-        mock_result.results = {builder.review_agents[0].name: mock_node_result}
-        
-        assert condition_func(mock_result) is True
-        
-        # Test with failed review
-        mock_agent_result.state = {"error": "Review failed"}
-        assert condition_func(mock_result) is False
+
     
-    def test_create_conditional_edge_function_unknown_type(self, builder):
-        """Test creating conditional edge function with unknown type."""
-        with pytest.raises(ValueError, match="Unknown condition type"):
-            builder.create_conditional_edge_function("unknown_type")
+
     
     def test_load_review_agents_error_handling(self, mock_persona_loader):
         """Test error handling when loading review agents fails."""
