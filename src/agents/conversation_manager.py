@@ -506,10 +506,11 @@ class ConversationManager:
             return content
 
         content_parts = [content]
-        content_parts.append("\n\n=== CONTEXT INFORMATION ===")
+        content_parts.append("\n\n## Context Information")
+        content_parts.append("")
 
         for context_result in context_results:
-            content_parts.append(f"\n{context_result.formatted_context}")
+            content_parts.append(context_result.formatted_context)
 
         return "\n".join(content_parts)
 
@@ -523,17 +524,20 @@ class ConversationManager:
         output_parts = []
 
         if include_content and result.content:
-            output_parts.append("=== CONTENT ===")
+            output_parts.append("## Content")
+            output_parts.append("")
             output_parts.append(result.content)
             output_parts.append("")
 
         if result.reviews:
-            output_parts.append("=== REVIEWS ===")
+            output_parts.append("## Reviews")
             output_parts.append("")
             for review in result.reviews:
-                output_parts.append(f"**{review.agent_name}** ({review.agent_role}):")
+                output_parts.append(f"### {review.agent_name}")
+                output_parts.append(f"*{review.agent_role}*")
+                output_parts.append("")
                 if review.error:
-                    output_parts.append(f"❌ Error: {review.error}")
+                    output_parts.append(f"❌ **Error:** {review.error}")
                 else:
                     # Clean up any raw JSON that might be in the feedback
                     clean_feedback = self._clean_raw_json(review.feedback)
@@ -541,40 +545,40 @@ class ConversationManager:
                 output_parts.append("")
 
         if include_context and result.context_results:
-            output_parts.append("=== CONTEXT ===")
+            output_parts.append("## Context")
             output_parts.append("")
             for context in result.context_results:
                 output_parts.append(context.formatted_context)
                 output_parts.append("")
 
         if result.analysis_results:
-            output_parts.append("=== ANALYSIS ===")
+            output_parts.append("## Analysis")
             output_parts.append("")
             for analysis in result.analysis_results:
-                output_parts.append("**Meta-Analysis Summary:**")
+                output_parts.append("### Meta-Analysis Summary")
                 output_parts.append(analysis.synthesis)
-                
+
                 if analysis.personal_statement_summary:
                     output_parts.append("")
-                    output_parts.append("**Personal Statement Summary:**")
+                    output_parts.append("### Personal Statement Summary")
                     output_parts.append(analysis.personal_statement_summary)
-                
+
                 if analysis.key_themes:
                     output_parts.append("")
-                    output_parts.append("**Key Themes:**")
+                    output_parts.append("### Key Themes")
                     for theme in analysis.key_themes:
                         output_parts.append(f"• {theme}")
-                
+
                 if analysis.priority_recommendations:
                     output_parts.append("")
-                    output_parts.append("**Priority Recommendations:**")
+                    output_parts.append("### Priority Recommendations")
                     for rec in analysis.priority_recommendations:
                         output_parts.append(f"• {rec}")
-                
+
                 output_parts.append("")
 
         if result.analysis_errors:
-            output_parts.append("=== ANALYSIS ERRORS ===")
+            output_parts.append("## Analysis Errors")
             output_parts.append("")
             for error in result.analysis_errors:
                 output_parts.append(f"❌ {error}")

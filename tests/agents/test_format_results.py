@@ -45,10 +45,11 @@ class TestFormatResults:
         
         formatted = manager.format_results(result)
         
-        assert "=== CONTENT ===" in formatted
+        assert "## Content" in formatted
         assert "Test content" in formatted
-        assert "=== REVIEWS ===" in formatted
-        assert "**Test Agent** (Tester):" in formatted
+        assert "## Reviews" in formatted
+        assert "### Test Agent" in formatted
+        assert "*Tester*" in formatted
         assert "Test feedback" in formatted
 
     def test_format_results_no_content(self, manager):
@@ -68,10 +69,11 @@ class TestFormatResults:
         
         formatted = manager.format_results(result, include_content=False)
         
-        assert "=== CONTENT ===" not in formatted
+        assert "## Content" not in formatted
         assert "Test content" not in formatted
-        assert "=== REVIEWS ===" in formatted
-        assert "**Test Agent** (Tester):" in formatted
+        assert "## Reviews" in formatted
+        assert "### Test Agent" in formatted
+        assert "*Tester*" in formatted
         assert "Test feedback" in formatted
 
     def test_format_results_with_context(self, manager):
@@ -98,9 +100,9 @@ class TestFormatResults:
         
         formatted = manager.format_results(result, include_context=True)
         
-        assert "=== CONTENT ===" in formatted
-        assert "=== REVIEWS ===" in formatted
-        assert "=== CONTEXT ===" in formatted
+        assert "## Content" in formatted
+        assert "## Reviews" in formatted
+        assert "## Context" in formatted
         assert "Test context" in formatted
 
     def test_format_results_with_analysis(self, manager):
@@ -128,15 +130,15 @@ class TestFormatResults:
         
         formatted = manager.format_results(result)
         
-        assert "=== CONTENT ===" in formatted
-        assert "=== REVIEWS ===" in formatted
-        assert "=== ANALYSIS ===" in formatted
-        assert "**Meta-Analysis Summary:**" in formatted
+        assert "## Content" in formatted
+        assert "## Reviews" in formatted
+        assert "## Analysis" in formatted
+        assert "### Meta-Analysis Summary" in formatted
         assert "Test analysis synthesis" in formatted
-        assert "**Key Themes:**" in formatted
+        assert "### Key Themes" in formatted
         assert "• Theme 1" in formatted
         assert "• Theme 2" in formatted
-        assert "**Priority Recommendations:**" in formatted
+        assert "### Priority Recommendations" in formatted
         assert "• Rec 1" in formatted
         assert "• Rec 2" in formatted
 
@@ -165,13 +167,14 @@ class TestFormatResults:
         
         formatted = manager.format_results(result)
         
-        assert "=== CONTENT ===" in formatted
-        assert "=== REVIEWS ===" in formatted
-        assert "**Good Agent** (Tester):" in formatted
+        assert "## Content" in formatted
+        assert "## Reviews" in formatted
+        assert "### Good Agent" in formatted
+        assert "*Tester*" in formatted
         assert "Good feedback" in formatted
-        assert "**Bad Agent** (Tester):" in formatted
-        assert "❌ Error: Something went wrong" in formatted
-        assert "=== ANALYSIS ERRORS ===" in formatted
+        assert "### Bad Agent" in formatted
+        assert "❌ **Error:** Something went wrong" in formatted
+        assert "## Analysis Errors" in formatted
         assert "❌ Analysis failed" in formatted
 
     def test_format_results_empty(self, manager):
@@ -187,4 +190,4 @@ class TestFormatResults:
         # Should handle empty results gracefully
         assert isinstance(formatted, str)
         # With no content and no reviews, should be minimal output
-        assert "=== CONTENT ===" not in formatted or formatted.count("=== CONTENT ===") == 1
+        assert "## Content" not in formatted or formatted.count("## Content") == 1

@@ -51,10 +51,11 @@ class TestConversationManagerCore:
         formatted = manager.format_results(result)
         
         # Should use new format
-        assert "=== CONTENT ===" in formatted
-        assert "=== REVIEWS ===" in formatted
+        assert "## Content" in formatted
+        assert "## Reviews" in formatted
         assert "Test content" in formatted
-        assert "**Test Agent** (Tester):" in formatted
+        assert "### Test Agent" in formatted
+        assert "*Tester*" in formatted
         assert "Test feedback" in formatted
 
     def test_is_error_content(self, manager):

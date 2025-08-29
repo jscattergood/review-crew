@@ -443,25 +443,32 @@ class DocumentProcessorNode(MultiAgentBase):
 
         # Compile primary documents first
         for doc in primary_docs:
-            doc_header = f"=== PRIMARY DOCUMENT: {doc['name']} ==="
+            compiled_parts.append("## Primary Document")
+            compiled_parts.append("")
+            compiled_parts.append(f"• **File:** {doc['name']}")
             if doc.get("manifest_path"):
-                doc_header += f" (from manifest: {doc['manifest_path']})"
-            compiled_parts.append(doc_header)
+                compiled_parts.append(f"• **Source:** {doc['manifest_path']}")
+            compiled_parts.append("")
             compiled_parts.append(doc["content"])
             compiled_parts.append("")  # Empty line between documents
 
         # Then supporting documents
         for doc in supporting_docs:
-            doc_header = f"=== SUPPORTING DOCUMENT: {doc['name']} ==="
+            compiled_parts.append("## Supporting Document")
+            compiled_parts.append("")
+            compiled_parts.append(f"• **File:** {doc['name']}")
             if doc.get("manifest_path"):
-                doc_header += f" (from manifest: {doc['manifest_path']})"
-            compiled_parts.append(doc_header)
+                compiled_parts.append(f"• **Source:** {doc['manifest_path']}")
+            compiled_parts.append("")
             compiled_parts.append(doc["content"])
             compiled_parts.append("")  # Empty line between documents
 
         # Finally other documents (from directory scan)
         for doc in other_docs:
-            compiled_parts.append(f"=== Document: {doc['name']} ===")
+            compiled_parts.append("## Document")
+            compiled_parts.append("")
+            compiled_parts.append(f"• **File:** {doc['name']}")
+            compiled_parts.append("")
             compiled_parts.append(doc["content"])
             compiled_parts.append("")  # Empty line between documents
 

@@ -323,6 +323,7 @@ def single(content: str, agent: str, output: Optional[str]):
     except Exception as e:
         click.echo(f"❌ Error during review: {e}", err=True)
 
+
 @cli.command()
 def status():
     """Show Review-Crew status and configuration."""
