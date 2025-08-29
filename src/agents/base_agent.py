@@ -433,8 +433,6 @@ Be professional but thorough in your analysis."""
             Extracted content as string
         """
         # Handle MultiAgentResult from Strands Graph
-        # dump the task into a log
-        self.logger.info(f"Task dump: {json.dumps(task, indent=4)}")
         from strands.multiagent.base import MultiAgentResult
 
         if isinstance(task, MultiAgentResult):
