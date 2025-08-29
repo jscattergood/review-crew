@@ -59,14 +59,38 @@ class BaseAgent(MultiAgentBase):
         # Setup logging
         self._setup_agent_logging()
 
-        # Create the Strands agent with persona configuration
-        model = self._create_model()
-        system_prompt = self._build_system_prompt()
+        # Lazy-loaded attributes - only created when first accessed
+        self._agent = None
+        self._model = None
+        self._system_prompt = None
 
-        # Log the system prompt when the agent is created
-        self._log_prompt(system_prompt, "system_prompt")
+    @property
+    def agent(self) -> Agent:
+        """Lazy-loaded Strands agent. Creates the agent and model only when first accessed."""
+        if self._agent is None:
+            # Create model and system prompt on first access
+            model = self._get_or_create_model()
+            system_prompt = self._get_or_create_system_prompt()
+            
+            # Log the system prompt when the agent is first created
+            self._log_prompt(system_prompt, "system_prompt")
+            
+            # Create the Strands agent
+            self._agent = Agent(name=self.persona.name, model=model, system_prompt=system_prompt)
+            
+        return self._agent
 
-        self.agent = Agent(name=persona.name, model=model, system_prompt=system_prompt)
+    def _get_or_create_model(self):
+        """Lazy-loaded model creation."""
+        if self._model is None:
+            self._model = self._create_model()
+        return self._model
+
+    def _get_or_create_system_prompt(self) -> str:
+        """Lazy-loaded system prompt creation."""
+        if self._system_prompt is None:
+            self._system_prompt = self._build_system_prompt()
+        return self._system_prompt
 
     def _setup_agent_logging(self):
         """Setup dedicated logging for this agent."""

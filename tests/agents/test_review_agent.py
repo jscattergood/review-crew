@@ -27,15 +27,17 @@ class TestReviewAgent:
     @pytest.fixture
     def agent(self, mock_persona):
         """Create a ReviewAgent with mocked dependencies."""
-        with patch('src.agents.base_agent.Agent') as mock_agent_class:
-            # Create a proper async mock for the agent
-            mock_agent = Mock()
-            mock_agent.invoke = Mock(return_value="Test review result")
-            mock_agent.invoke_async = AsyncMock(return_value="Test async review result")
-            mock_agent_class.return_value = mock_agent
-            
-            agent = ReviewAgent(persona=mock_persona)
-            return agent
+        agent = ReviewAgent(persona=mock_persona)
+        
+        # Mock the agent property to return a mock agent without creating real models
+        mock_agent = Mock()
+        mock_agent.invoke = Mock(return_value="Test review result")
+        mock_agent.invoke_async = AsyncMock(return_value="Test async review result")
+        
+        # Replace the lazy-loaded agent with our mock
+        agent._agent = mock_agent
+        
+        return agent
 
     def test_init(self, agent, mock_persona):
         """Test ReviewAgent initialization."""
