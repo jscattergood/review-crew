@@ -4,7 +4,7 @@ import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch
 
-from src.agents.conversation_manager import ConversationManager
+from src.conversation.manager import ConversationManager
 from src.agents.data_models import ConversationResult, ReviewResult
 from src.agents.context_agent import ContextResult
 from src.agents.analysis_agent import AnalysisResult
@@ -25,7 +25,7 @@ class TestFormatResults:
     @pytest.fixture
     def manager(self, mock_persona_loader):
         """Create a ConversationManager with mocked dependencies."""
-        with patch('src.agents.conversation_manager.AnalysisAgent'):
+        with patch('src.conversation.manager.AnalysisAgent'):
             return ConversationManager(persona_loader=mock_persona_loader)
 
     def test_format_results_basic(self, manager):

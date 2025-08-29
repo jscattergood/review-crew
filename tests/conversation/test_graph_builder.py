@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
-from src.agents.review_graph_builder import ReviewGraphBuilder
+from src.conversation.graph_builder import ReviewGraphBuilder
 from src.agents.review_agent import ReviewAgent
 from src.agents.context_agent import ContextAgent
 from src.agents.analysis_agent import AnalysisAgent
@@ -101,7 +101,7 @@ class TestReviewGraphBuilder:
     def test_init_default_persona_loader(self):
         """Test ReviewGraphBuilder initialization with default PersonaLoader."""
         with patch('src.agents.base_agent.Agent'), \
-             patch('src.agents.review_graph_builder.PersonaLoader') as mock_loader_class:
+             patch('src.conversation.graph_builder.PersonaLoader') as mock_loader_class:
             mock_loader = Mock()
             mock_loader.load_reviewer_personas.return_value = []
             mock_loader.load_contextualizer_personas.return_value = []
@@ -113,7 +113,7 @@ class TestReviewGraphBuilder:
             assert builder.persona_loader == mock_loader
             mock_loader_class.assert_called_once()
     
-    @patch('src.agents.review_graph_builder.GraphBuilder')
+    @patch('src.conversation.graph_builder.GraphBuilder')
     def test_build_standard_review_graph(self, mock_graph_builder_class, builder):
         """Test building a standard review graph."""
         mock_builder = Mock()
@@ -131,7 +131,7 @@ class TestReviewGraphBuilder:
         mock_builder.set_entry_point.assert_called_with("document_processor")
         mock_builder.build.assert_called_once()
     
-    @patch('src.agents.review_graph_builder.GraphBuilder')
+    @patch('src.conversation.graph_builder.GraphBuilder')
     def test_build_standard_review_graph_with_selections(self, mock_graph_builder_class, builder):
         """Test building a standard review graph with agent selections."""
         mock_builder = Mock()
@@ -148,7 +148,7 @@ class TestReviewGraphBuilder:
         assert result == mock_graph
         mock_builder.build.assert_called_once()
     
-    @patch('src.agents.review_graph_builder.GraphBuilder')
+    @patch('src.conversation.graph_builder.GraphBuilder')
     def test_build_manifest_driven_graph(self, mock_graph_builder_class, builder):
         """Test building a manifest-driven review graph."""
         mock_builder = Mock()
@@ -172,7 +172,7 @@ class TestReviewGraphBuilder:
         assert result == mock_graph
         mock_builder.build.assert_called_once()
     
-    @patch('src.agents.review_graph_builder.GraphBuilder')
+    @patch('src.conversation.graph_builder.GraphBuilder')
     def test_build_simple_review_graph(self, mock_graph_builder_class, builder):
         """Test building a simple review graph."""
         mock_builder = Mock()

@@ -10,8 +10,8 @@ from pathlib import Path
 
 import click
 
-from ..agents.conversation_manager import ConversationManager
 from ..config.persona_loader import PersonaLoader
+from ..conversation.manager import ConversationManager
 
 
 @click.group()

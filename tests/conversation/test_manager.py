@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime
 
-from src.agents.conversation_manager import ConversationManager
+from src.conversation.manager import ConversationManager
 from src.agents.data_models import ConversationResult, ReviewResult
 
 
@@ -23,12 +23,12 @@ class TestConversationManagerCore:
     @pytest.fixture
     def manager(self, mock_persona_loader):
         """Create a ConversationManager with mocked dependencies."""
-        with patch('src.agents.conversation_manager.AnalysisAgent'):
+        with patch('src.conversation.manager.AnalysisAgent'):
             return ConversationManager(persona_loader=mock_persona_loader)
 
     def test_init_basic(self, mock_persona_loader):
         """Test basic ConversationManager initialization."""
-        with patch('src.agents.conversation_manager.AnalysisAgent'):
+        with patch('src.conversation.manager.AnalysisAgent'):
             manager = ConversationManager(persona_loader=mock_persona_loader)
             assert manager is not None
             assert manager.persona_loader == mock_persona_loader

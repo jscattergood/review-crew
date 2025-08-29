@@ -11,11 +11,11 @@ from typing import Any
 from strands.multiagent import GraphBuilder
 from strands.multiagent.base import MultiAgentResult
 
+from ..agents.analysis_agent import AnalysisAgent
+from ..agents.context_agent import ContextAgent
+from ..agents.review_agent import ReviewAgent
 from ..config.persona_loader import PersonaConfig, PersonaLoader
-from .analysis_agent import AnalysisAgent
-from .context_agent import ContextAgent
-from .document_processor_node import DocumentProcessorNode
-from .review_agent import ReviewAgent
+from .document_processor import DocumentProcessorNode
 
 
 class ReviewGraphBuilder:

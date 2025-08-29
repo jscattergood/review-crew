@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch, AsyncMock
 
-from src.agents.conversation_manager import ConversationManager
+from src.conversation.manager import ConversationManager
 from src.config.persona_loader import PersonaLoader
 
 
@@ -76,7 +76,7 @@ def register_user(email, password):
         
         # Mock the Strands Agent and ReviewAgent to avoid actual LLM calls
         with patch('src.agents.base_agent.Agent') as mock_agent_class, \
-             patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class:
+             patch('src.conversation.manager.ReviewAgent') as mock_review_agent_class:
             
             # Mock the Strands Agent class to return an awaitable agent
             mock_strands_agent = Mock()
@@ -144,8 +144,8 @@ def register_user(email, password):
         """Test context processing integration."""
         
         with patch('src.agents.base_agent.Agent') as mock_agent_class, \
-             patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class, \
-             patch('src.agents.conversation_manager.ContextAgent') as mock_context_agent_class:
+             patch('src.conversation.manager.ReviewAgent') as mock_review_agent_class, \
+             patch('src.conversation.manager.ContextAgent') as mock_context_agent_class:
             
             # Mock the Strands Agent class to return an awaitable agent
             mock_strands_agent = Mock()
@@ -214,7 +214,7 @@ curl -X POST api.example.com/register -d "email=user@example.com"
 """
         
         with patch('src.agents.base_agent.Agent') as mock_agent_class, \
-             patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class:
+             patch('src.conversation.manager.ReviewAgent') as mock_review_agent_class:
             
             # Mock the Strands Agent class to return an awaitable agent
             mock_strands_agent = Mock()
@@ -272,7 +272,7 @@ curl -X POST api.example.com/register -d "email=user@example.com"
         }
         
         with patch('src.agents.base_agent.Agent') as mock_agent_class, \
-             patch('src.agents.conversation_manager.ReviewAgent') as mock_review_agent_class:
+             patch('src.conversation.manager.ReviewAgent') as mock_review_agent_class:
             
             # Mock the Strands Agent class to return an awaitable agent
             mock_strands_agent = Mock()
@@ -339,7 +339,7 @@ class TestSystemHealth:
             from src.config.persona_loader import PersonaLoader, PersonaConfig
             from src.agents.review_agent import ReviewAgent
             from src.agents.context_agent import ContextAgent
-            from src.agents.conversation_manager import ConversationManager
+            from src.conversation.manager import ConversationManager
             from src.agents.analysis_agent import AnalysisAgent
             
             assert PersonaLoader

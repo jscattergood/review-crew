@@ -24,7 +24,8 @@ help:
 	@echo "  install          Install dependencies using uv"
 	@echo ""
 	@echo "Testing & Validation:"
-	@echo "  test             Run all tests"
+	@echo "  test             Run all tests (condensed output)"
+	@echo "  test-verbose     Run all tests (detailed output)"
 	@echo "  personas         List all available personas by type"
 	@echo "  persona-types    Show persona type breakdown summary"
 	@echo "  validate         Validate all persona configurations"
@@ -57,6 +58,11 @@ install:
 # Testing targets
 test:
 	@echo "🧪 Running all tests..."
+	uv run pytest tests/ --tb=short -q
+	@echo "✅ All tests passed!"
+
+test-verbose:
+	@echo "🧪 Running all tests (verbose)..."
 	uv run pytest tests/ -v
 	@echo "✅ All tests passed!"
 

@@ -9,13 +9,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from ..agents.analysis_agent import AnalysisAgent
+from ..agents.context_agent import ContextAgent, ContextResult
+from ..agents.data_models import ConversationResult
+from ..agents.result_converter import ResultConverter
+from ..agents.review_agent import ReviewAgent
 from ..config.persona_loader import PersonaLoader
-from .analysis_agent import AnalysisAgent
-from .context_agent import ContextAgent, ContextResult
-from .data_models import ConversationResult
-from .result_converter import ResultConverter
-from .review_agent import ReviewAgent
-from .review_graph_builder import ReviewGraphBuilder
+from .graph_builder import ReviewGraphBuilder
 
 
 class ConversationManager:
