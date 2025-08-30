@@ -380,7 +380,25 @@ class ConversationManager:
         if result.reviews:
             output_parts.append("## Reviews")
             output_parts.append("")
-            for review in result.reviews:
+
+            # Add table of contents if there are multiple reviews
+            if len(result.reviews) > 1:
+                output_parts.append("### Table of Contents")
+                for review in result.reviews:
+                    # Create anchor link from agent name
+                    anchor = self._create_anchor_link(review.agent_name)
+                    output_parts.append(f"- [{review.agent_name}](#{anchor})")
+                output_parts.append("")
+                output_parts.append("***")
+                output_parts.append("")
+
+            # Add reviews with separators
+            for i, review in enumerate(result.reviews):
+                # Add separator before each review except the first
+                if i > 0:
+                    output_parts.append("***")
+                    output_parts.append("")
+
                 output_parts.append(f"### {review.agent_name}")
                 output_parts.append(f"*{review.agent_role}*")
                 output_parts.append("")
@@ -497,3 +515,29 @@ class ConversationManager:
                 pass
 
         return text
+
+    def _create_anchor_link(self, agent_name: str) -> str:
+        """Create a markdown anchor link from an agent name.
+
+        Args:
+            agent_name: The agent name to convert to an anchor
+
+        Returns:
+            A markdown-compatible anchor link
+        """
+        # Convert to lowercase and replace spaces and special characters with hyphens
+        anchor = agent_name.lower()
+        anchor = anchor.replace(" ", "-")
+        anchor = anchor.replace("(", "")
+        anchor = anchor.replace(")", "")
+        anchor = anchor.replace("&", "")
+        anchor = anchor.replace(",", "")
+        anchor = anchor.replace(".", "")
+        anchor = anchor.replace("'", "")
+        anchor = anchor.replace('"', "")
+        # Remove multiple consecutive hyphens
+        while "--" in anchor:
+            anchor = anchor.replace("--", "-")
+        # Remove leading/trailing hyphens
+        anchor = anchor.strip("-")
+        return anchor

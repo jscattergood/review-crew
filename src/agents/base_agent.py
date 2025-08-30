@@ -71,13 +71,15 @@ class BaseAgent(MultiAgentBase):
             # Create model and system prompt on first access
             model = self._get_or_create_model()
             system_prompt = self._get_or_create_system_prompt()
-            
+
             # Log the system prompt when the agent is first created
             self._log_prompt(system_prompt, "system_prompt")
-            
+
             # Create the Strands agent
-            self._agent = Agent(name=self.persona.name, model=model, system_prompt=system_prompt)
-            
+            self._agent = Agent(
+                name=self.persona.name, model=model, system_prompt=system_prompt
+            )
+
         return self._agent
 
     def _get_or_create_model(self):
