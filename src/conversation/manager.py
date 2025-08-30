@@ -374,6 +374,10 @@ class ConversationManager:
         if include_content and result.content:
             output_parts.append("## Content")
             output_parts.append("")
+            # Add timestamp at the top of content section
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            output_parts.append(f"*Generated: {timestamp}*")
+            output_parts.append("")
             output_parts.append(result.content)
             output_parts.append("")
 
