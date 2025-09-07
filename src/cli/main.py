@@ -48,11 +48,6 @@ def cli():
     help="Path to context file to be processed by contextualizer (auto-selects first available contextualizer)",
 )
 @click.option(
-    "--max-context-length",
-    type=int,
-    help="[DEPRECATED] Maximum context length for analysis. Now configured per-model in persona files.",
-)
-@click.option(
     "--include-context",
     is_flag=True,
     help="Include context results from contextualizers in the output",
@@ -67,7 +62,6 @@ def review(
     model_id: str | None,
     no_analysis: bool,
     context: str | None,
-    max_context_length: int | None,
     include_context: bool,
 ):
     """Review content with multiple AI agents.
@@ -163,12 +157,7 @@ def review(
     if model_id:
         model_config["model_id"] = model_id
     
-    # Deprecation warning for max_context_length CLI option
-    if max_context_length:
-        click.echo("⚠️  Warning: --max-context-length is deprecated. Context length is now configured per-model in persona files.")
-        click.echo("   This CLI option will be ignored in favor of model-specific settings.")
-    
-    # Note: max_context_length is now handled per-agent based on their model configuration
+    # Note: Context length is now handled per-agent based on their model configuration
 
     # Initialize conversation manager
     try:
