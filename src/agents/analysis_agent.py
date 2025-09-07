@@ -454,7 +454,9 @@ Focus on creating a comprehensive synthesis that captures the full scope of all 
                 # Process using the specialized analysis method with timing
                 # Use model-specific context length for chunking
                 start_time = time.time()
-                analysis_result = await self.analyze(reviews)  # Will use model-specific context length
+                analysis_result = await self.analyze(
+                    reviews
+                )  # Will use model-specific context length
                 execution_time = time.time() - start_time
 
             # Format analysis result as text for the response

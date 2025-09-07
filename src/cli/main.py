@@ -156,7 +156,7 @@ def review(
         model_config["base_url"] = model_url
     if model_id:
         model_config["model_id"] = model_id
-    
+
     # Note: Context length is now handled per-agent based on their model configuration
 
     # Initialize conversation manager

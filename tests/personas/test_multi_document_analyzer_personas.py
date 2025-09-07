@@ -1,7 +1,7 @@
 """
-Tests for new analyzer personas created in Phase 2.
+Tests for multi-document analyzer personas.
 
-Tests the holistic analysis personas for multi-document review.
+Tests the holistic analysis personas designed for multi-document review and synthesis.
 """
 
 import pytest
@@ -10,8 +10,8 @@ from src.config.persona_loader import PersonaLoader
 from src.agents.analysis_agent import AnalysisAgent
 
 
-class TestNewAnalyzerPersonas:
-    """Test new analyzer personas added in Phase 2."""
+class TestMultiDocumentAnalyzerPersonas:
+    """Test multi-document analyzer personas for holistic analysis and synthesis."""
 
     def setup_method(self):
         """Set up test fixtures."""
@@ -73,11 +73,11 @@ class TestNewAnalyzerPersonas:
         assert "{content}" in persona.prompt_template
         assert "{reviews}" in persona.prompt_template
 
-    def test_all_new_analyzers_load_successfully(self):
-        """Test that all new analyzer personas can be loaded."""
+    def test_all_multi_document_analyzers_load_successfully(self):
+        """Test that all multi-document analyzer personas can be loaded."""
         analyzer_personas = self.loader.load_analyzer_personas()
         
-        # Check that our new analyzers are included
+        # Check that our multi-document analyzers are included
         analyzer_names = [p.name for p in analyzer_personas]
         assert "Application Coherence Analyzer" in analyzer_names
         assert "Cross-Document Themes Analyzer" in analyzer_names
@@ -108,15 +108,15 @@ class TestNewAnalyzerPersonas:
             # Expected to fail due to missing model provider, but persona should be valid
             assert "persona" not in str(e).lower(), f"Persona validation failed: {e}"
 
-    def test_all_new_analyzers_have_required_fields(self):
-        """Test that all new analyzer personas have required fields."""
-        new_analyzer_paths = [
+    def test_all_multi_document_analyzers_have_required_fields(self):
+        """Test that all multi-document analyzer personas have required fields."""
+        analyzer_paths = [
             self.personas_dir / "analyzers" / "application_coherence_analyzer.yaml",
             self.personas_dir / "analyzers" / "cross_document_themes_analyzer.yaml",
             self.personas_dir / "analyzers" / "competitive_analysis_specialist.yaml"
         ]
         
-        for persona_path in new_analyzer_paths:
+        for persona_path in analyzer_paths:
             assert persona_path.exists(), f"Persona file should exist: {persona_path}"
             
             persona = self.loader.load_persona(persona_path)
@@ -137,8 +137,8 @@ class TestNewAnalyzerPersonas:
             assert "{reviews}" in persona.prompt_template, f"Analyzer should have reviews placeholder: {persona_path}"
 
     def test_analyzer_prompt_templates_include_synthesis_focus(self):
-        """Test that new analyzer personas focus on synthesis and meta-analysis."""
-        new_analyzer_paths = [
+        """Test that multi-document analyzer personas focus on synthesis and meta-analysis."""
+        analyzer_paths = [
             self.personas_dir / "analyzers" / "application_coherence_analyzer.yaml",
             self.personas_dir / "analyzers" / "cross_document_themes_analyzer.yaml",
             self.personas_dir / "analyzers" / "competitive_analysis_specialist.yaml"
@@ -149,7 +149,7 @@ class TestNewAnalyzerPersonas:
             "integration", "coherence", "patterns", "themes"
         ]
         
-        for persona_path in new_analyzer_paths:
+        for persona_path in analyzer_paths:
             persona = self.loader.load_persona(persona_path)
             
             # Check that prompt template includes synthesis concepts

@@ -167,3 +167,42 @@ class TestPersonaConfig:
         assert config.backstory == "Testing background"
         assert config.prompt_template == "Test: {content}"
         assert config.model_config == {'temp': 0.5}
+
+    def test_persona_config_with_model_id(self):
+        """Test PersonaConfig with model_id configuration."""
+        config = PersonaConfig(
+            name="Test Agent",
+            role="Test Role",
+            goal="Test goal",
+            backstory="Test backstory",
+            prompt_template="Test: {content}",
+            model_config={
+                'model_id': 'qwen/qwen3-4b-thinking-2507',
+                'temperature': 0.3,
+                'max_tokens': 2000,
+                'max_context_length': 32768
+            }
+        )
+        
+        assert config.model_config['model_id'] == 'qwen/qwen3-4b-thinking-2507'
+        assert config.model_config['temperature'] == 0.3
+        assert config.model_config['max_tokens'] == 2000
+        assert config.model_config['max_context_length'] == 32768
+
+    def test_persona_config_without_model_id(self):
+        """Test PersonaConfig without model_id (fallback behavior)."""
+        config = PersonaConfig(
+            name="Test Agent",
+            role="Test Role",
+            goal="Test goal",
+            backstory="Test backstory",
+            prompt_template="Test: {content}",
+            model_config={
+                'temperature': 0.5,
+                'max_tokens': 1500
+            }
+        )
+        
+        assert 'model_id' not in config.model_config
+        assert config.model_config['temperature'] == 0.5
+        assert config.model_config['max_tokens'] == 1500

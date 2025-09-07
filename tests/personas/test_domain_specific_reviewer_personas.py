@@ -1,7 +1,7 @@
 """
-Tests for new reviewer personas created in Phase 2.
+Tests for domain-specific reviewer personas.
 
-Tests the academic, business, and content domain reviewers.
+Tests the academic, business, and content domain reviewers for specialized evaluation.
 """
 
 import pytest
@@ -12,8 +12,8 @@ from src.config.persona_loader import PersonaLoader
 from src.agents.review_agent import ReviewAgent
 
 
-class TestNewReviewerPersonas:
-    """Test new reviewer personas added in Phase 2."""
+class TestDomainSpecificReviewerPersonas:
+    """Test domain-specific reviewer personas for specialized evaluation."""
 
     def setup_method(self):
         """Set up test fixtures."""
@@ -141,15 +141,15 @@ class TestNewReviewerPersonas:
             # Expected to fail due to missing model provider, but persona should be valid
             assert "persona" not in str(e).lower(), f"Persona validation failed: {e}"
 
-    def test_all_new_personas_have_required_fields(self):
-        """Test that all new personas have required fields."""
-        new_persona_paths = [
+    def test_all_domain_specific_personas_have_required_fields(self):
+        """Test that all domain-specific personas have required fields."""
+        persona_paths = [
             self.personas_dir / "reviewers" / "academic" / "application_reviewer.yaml",
             self.personas_dir / "reviewers" / "content" / "multi_document_reviewer.yaml",
             self.personas_dir / "reviewers" / "business" / "proposal_reviewer.yaml"
         ]
         
-        for persona_path in new_persona_paths:
+        for persona_path in persona_paths:
             assert persona_path.exists(), f"Persona file should exist: {persona_path}"
             
             persona = self.loader.load_persona(persona_path)

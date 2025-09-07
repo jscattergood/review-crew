@@ -1,7 +1,7 @@
 """
-Tests for enhanced CLI functionality in Phase 2.
+Tests for CLI functionality.
 
-Tests the manifest-driven workflow enhancements and improved user feedback.
+Tests the manifest-driven workflows, directory processing, and command-line interface.
 """
 
 import pytest
@@ -13,8 +13,8 @@ from unittest.mock import patch, MagicMock
 from src.cli.main import cli
 
 
-class TestEnhancedCLI:
-    """Test enhanced CLI functionality for manifest-driven workflows."""
+class TestCLI:
+    """Test CLI functionality for manifest-driven workflows and command-line interface."""
 
     @patch('src.cli.main.ConversationManager')
     def test_directory_with_manifest_detection(self, mock_manager_class):
@@ -216,3 +216,55 @@ class TestEnhancedCLI:
             # Check informative messages
             assert "📂 Processing document collection from:" in result.output
             assert "📄 No manifest found - will use all available reviewers" in result.output
+
+    def test_max_context_length_parameter_removed(self):
+        """Test that --max-context-length parameter is no longer accepted."""
+        runner = CliRunner()
+        
+        # Try to use the removed parameter
+        result = runner.invoke(cli, [
+            'review', 'test content',
+            '--max-context-length', '8192',
+            '--provider', 'lm_studio'
+        ])
+        
+        # Should fail with "no such option" error
+        assert result.exit_code != 0
+        assert "No such option: --max-context-length" in result.output
+
+    def test_help_text_no_max_context_length(self):
+        """Test that help text no longer mentions --max-context-length."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ['review', '--help'])
+        
+        # Should not mention the removed parameter
+        assert "--max-context-length" not in result.output
+        assert "max-context-length" not in result.output
+
+    @patch('src.cli.main.ConversationManager')
+    def test_model_id_override_from_cli(self, mock_manager_class):
+        """Test that model-id can be overridden from CLI."""
+        # Mock the ConversationManager
+        mock_manager = MagicMock()
+        mock_manager_class.return_value = mock_manager
+        mock_result = MagicMock()
+        mock_manager.run_review.return_value = mock_result
+        mock_manager.format_results.return_value = "Mock review results"
+        
+        runner = CliRunner()
+        
+        # Run CLI with model-id override
+        result = runner.invoke(cli, [
+            'review', 'test content',
+            '--provider', 'lm_studio',
+            '--model-id', 'custom-model-123'
+        ])
+        
+        # Should succeed
+        assert result.exit_code == 0
+        
+        # Check that ConversationManager was called with model config
+        mock_manager_class.assert_called_once()
+        call_kwargs = mock_manager_class.call_args[1]
+        assert 'model_config' in call_kwargs
+        assert call_kwargs['model_config']['model_id'] == 'custom-model-123'

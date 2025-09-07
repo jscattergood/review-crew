@@ -200,8 +200,7 @@ python -m src.cli.main review "content" -o results.txt
 # Disable analysis (reviewers only)
 python -m src.cli.main review "content" --no-analysis
 
-# Configure context length for chunking (default: 4096)
-python -m src.cli.main review "content" --max-context-length 8192
+# Context length is now configured per-model in persona files
 
 # Custom model configuration
 python -m src.cli.main review "content" --provider lm_studio --model-url http://localhost:1234/v1
@@ -496,8 +495,10 @@ goal: "Evaluate code quality, architecture, and best practices"
 backstory: "10+ years experience in software development..."
 prompt_template: "Review the following content from a technical perspective..."
 model_config:
+  model_id: "qwen/qwen3-4b-2507"  # Use standard model for technical reviews
   temperature: 0.3
   max_tokens: 1500
+  max_context_length: 8192  # 8K context for standard model
 ```
 
 **Contextualizer Persona Example** (`config/personas/contextualizers/business_contextualizer.yaml`):
@@ -508,8 +509,10 @@ goal: "Format and structure business context for comprehensive reviews"
 backstory: "Expert in translating business requirements into actionable context..."
 prompt_template: "Process and format the following context information..."
 model_config:
+  model_id: "qwen/qwen3-4b-2507"  # Use standard model for context processing
   temperature: 0.2
   max_tokens: 1000
+  max_context_length: 8192  # 8K context for standard model
 ```
 
 **Analyzer Persona Example** (`config/personas/analyzers/meta_analysis.yaml`):
@@ -520,10 +523,62 @@ goal: "Synthesize feedback from all reviewers and provide strategic recommendati
 backstory: "Expert in content analysis and strategic communication..."
 prompt_template: "Analyze the following reviews and provide synthesis..."
 model_config:
+  model_id: "qwen/qwen3-4b-thinking-2507"  # Use reasoning model for complex analysis
   temperature: 0.4
   max_tokens: 2000
-  max_context_length: 8192  # Optional: persona-specific context limit
+  max_context_length: 32768  # 32K context for reasoning model
 ```
+
+## Model Configuration
+
+### Reasoning vs Standard Models
+
+Review-Crew supports both reasoning and standard models for optimal performance:
+
+**Reasoning Models** (for complex analysis):
+- **Model**: `qwen/qwen3-4b-thinking-2507`
+- **Context**: 32K tokens
+- **Best for**: Analysis agents, complex synthesis, strategic evaluation
+- **Features**: Chain-of-thought reasoning, multi-step analysis
+
+**Standard Models** (for straightforward tasks):
+- **Model**: `qwen/qwen3-4b-2507`  
+- **Context**: 8K tokens
+- **Best for**: Review agents, contextualizers, basic evaluation
+- **Features**: Fast processing, efficient resource usage
+
+### Model Selection in Personas
+
+Configure models in your persona files:
+
+```yaml
+# For complex analysis (reasoning model)
+model_config:
+  model_id: "qwen/qwen3-4b-thinking-2507"
+  temperature: 0.3
+  max_tokens: 2000
+  max_context_length: 32768
+
+# For basic reviews (standard model)
+model_config:
+  model_id: "qwen/qwen3-4b-2507"
+  temperature: 0.5
+  max_tokens: 1500
+  max_context_length: 8192
+
+# Use LM Studio default model (fallback)
+model_config:
+  temperature: 0.4
+  max_tokens: 1000
+  # No model_id - uses LM Studio's currently loaded model
+```
+
+### Context Length Management
+
+- **Automatic Detection**: System detects context limits based on model_id
+- **Smart Truncation**: Content automatically truncated when exceeding limits
+- **Per-Model Optimization**: Each model uses its optimal context window
+- **Chunking Support**: Large content automatically chunked for analysis agents
 
 ## Advanced Features
 
@@ -557,12 +612,13 @@ The system includes intelligent analysis agents that process all reviewer feedba
 - **Context Generation**: Creates summaries and context for follow-up work
 
 ### Smart Context Management
-For models with smaller context windows, the system automatically handles large review sets:
+The system automatically handles context length management based on each model's capabilities:
 
-- **Automatic Chunking**: Splits large review sets into manageable chunks
+- **Model-Specific Context Lengths**: Each model uses its optimal context window (32K for reasoning, 8K for standard models)
+- **Automatic Chunking**: Splits large review sets into manageable chunks when needed
 - **Intelligent Synthesis**: Combines chunked analyses into coherent final output
-- **Configurable Limits**: Set context length via `--max-context-length` (default: 4096)
-- **Seamless Experience**: Chunking happens transparently when needed
+- **Per-Persona Configuration**: Set context length in persona `model_config` section
+- **Seamless Experience**: Context management happens transparently based on model capabilities
 
 ### CLI Options Reference
 ```bash
@@ -580,7 +636,6 @@ For models with smaller context windows, the system automatically handles large 
 --context PATH               # Path to context file processed by contextualizers
 --include-context            # Include contextualizer results in output
 --no-analysis                # Disable analysis stage (reviewers only)
---max-context-length INT     # Context limit for chunking (default: 4096)
 
 # Output control
 --no-content                 # Hide original content in markdown output

@@ -133,23 +133,26 @@ class BaseAgent(MultiAgentBase):
         try:
             # Get model configuration for logging
             model_config = self._get_model_config()
-            model_id = model_config.get("model_id", "<default>" if self.model_provider == "lm_studio" else "unknown")
+            model_id = model_config.get(
+                "model_id",
+                "<default>" if self.model_provider == "lm_studio" else "unknown",
+            )
             max_context_length = self.get_max_context_length()
-            
+
             # Log header with metadata including model information
             header = f"[{prompt_type.upper()}] Prompt sent to {self.persona.name}"
             self.logger.info(header)
-            
+
             # Log model configuration details
             model_info = f"Model: {model_id} | Provider: {self.model_provider} | Context Length: {max_context_length}"
             self.logger.info(model_info)
-            
+
             # Log temperature and max_tokens if available
             temp = model_config.get("temperature", "default")
             max_tokens = model_config.get("max_tokens", "default")
             config_info = f"Temperature: {temp} | Max Tokens: {max_tokens}"
             self.logger.info(config_info)
-            
+
             # Log separator
             self.logger.info("-" * 80)
 
@@ -194,7 +197,7 @@ Be professional but thorough in your analysis."""
 
             # LM Studio configuration for OpenAI-compatible API
             base_url = config.get("base_url", "http://localhost:1234/v1")
-            
+
             # Client arguments for the OpenAI client (for LM Studio)
             client_args = {
                 "base_url": base_url,
@@ -203,7 +206,7 @@ Be professional but thorough in your analysis."""
 
             # Model configuration
             model_config = {}
-            
+
             # Only set model_id if explicitly provided, otherwise let LM Studio use its default
             if "model_id" in config:
                 model_id = config["model_id"]
@@ -246,7 +249,9 @@ Be professional but thorough in your analysis."""
             if "max_tokens" in config:
                 ollama_config["max_tokens"] = config["max_tokens"]
 
-            print(f"✅ Creating Ollama model: {ollama_config['model_id']} at {ollama_config['base_url']}")
+            print(
+                f"✅ Creating Ollama model: {ollama_config['model_id']} at {ollama_config['base_url']}"
+            )
             return OllamaModel(**ollama_config)
 
         except ImportError:
@@ -304,30 +309,32 @@ Be professional but thorough in your analysis."""
 
     def get_max_context_length(self) -> int:
         """Get the maximum context length for this agent's model.
-        
+
         Returns the model-specific context length from persona configuration,
         with fallbacks based on the model type.
-        
+
         Returns:
             Maximum context length in tokens
         """
         # Check if persona has explicit max_context_length setting
-        if (self.persona.model_config and 
-            isinstance(self.persona.model_config, dict) and 
-            "max_context_length" in self.persona.model_config):
+        if (
+            self.persona.model_config
+            and isinstance(self.persona.model_config, dict)
+            and "max_context_length" in self.persona.model_config
+        ):
             return self.persona.model_config["max_context_length"]
-        
+
         # Get the actual model_id being used
         model_config = self._get_model_config()
         model_id = model_config.get("model_id", "")
-        
+
         # Model-specific defaults based on known context lengths
         if "qwen3-4b-thinking" in model_id:
             # Reasoning models typically have larger context windows
             return 32768  # 32K context for reasoning model
         elif "qwen3-4b" in model_id:
             # Standard Qwen models
-            return 8192   # 8K context for standard model
+            return 8192  # 8K context for standard model
         elif "claude-3" in model_id:
             # Claude models have large context windows
             return 200000  # 200K context for Claude
@@ -336,10 +343,10 @@ Be professional but thorough in your analysis."""
             return 128000  # 128K context for GPT-4
         elif "llama" in model_id.lower():
             # Llama models
-            return 4096   # 4K context for Llama
+            return 4096  # 4K context for Llama
         elif not model_id and self.model_provider == "lm_studio":
             # No model_id specified for LM Studio - use conservative default
-            return 8192   # 8K context for unknown LM Studio model
+            return 8192  # 8K context for unknown LM Studio model
         else:
             # Conservative default
             return 4096
@@ -361,16 +368,20 @@ Be professional but thorough in your analysis."""
         # Check if prompt exceeds context length and handle accordingly
         max_context_length = self.get_max_context_length()
         prompt_length = self._count_tokens(prompt)
-        
+
         # Reserve space for response and system prompt
         response_buffer = 1000  # tokens for response
         system_prompt_buffer = 500  # tokens for system prompt
         available_tokens = max_context_length - response_buffer - system_prompt_buffer
-        
+
         if prompt_length > available_tokens:
-            print(f"⚠️  Prompt ({prompt_length} tokens) exceeds context limit ({available_tokens} available)")
-            print(f"   Agent: {self.persona.name} | Model Context: {max_context_length}")
-            
+            print(
+                f"⚠️  Prompt ({prompt_length} tokens) exceeds context limit ({available_tokens} available)"
+            )
+            print(
+                f"   Agent: {self.persona.name} | Model Context: {max_context_length}"
+            )
+
             # For now, truncate the prompt (subclasses can override for smarter chunking)
             truncated_prompt = self._truncate_prompt(prompt, available_tokens)
             print(f"   Truncated to {self._count_tokens(truncated_prompt)} tokens")
@@ -387,70 +398,78 @@ Be professional but thorough in your analysis."""
 
     def _count_tokens(self, text: str) -> int:
         """Count tokens in text using tiktoken.
-        
+
         Args:
             text: Text to count tokens for
-            
+
         Returns:
             Number of tokens
         """
         try:
             import tiktoken
+
             encoding = tiktoken.get_encoding("cl100k_base")
             return len(encoding.encode(text))
         except ImportError:
             # Fallback to rough character-based estimation
             return len(text) // 4  # Rough approximation: 4 chars per token
-    
+
     def _truncate_prompt(self, prompt: str, max_tokens: int) -> str:
         """Truncate prompt to fit within token limit.
-        
+
         Args:
             prompt: Original prompt
             max_tokens: Maximum tokens allowed
-            
+
         Returns:
             Truncated prompt
         """
         try:
             import tiktoken
+
             encoding = tiktoken.get_encoding("cl100k_base")
             tokens = encoding.encode(prompt)
-            
+
             if len(tokens) <= max_tokens:
                 return prompt
-                
+
             # Truncate tokens and decode back to text
             truncated_tokens = tokens[:max_tokens]
             truncated_text = encoding.decode(truncated_tokens)
-            
+
             # Add truncation indicator
-            return truncated_text + "\n\n[... content truncated due to context length limit ...]"
-            
+            return (
+                truncated_text
+                + "\n\n[... content truncated due to context length limit ...]"
+            )
+
         except ImportError:
             # Fallback to character-based truncation
             max_chars = max_tokens * 4  # Rough approximation
             if len(prompt) <= max_chars:
                 return prompt
-            return prompt[:max_chars] + "\n\n[... content truncated due to context length limit ...]"
+            return (
+                prompt[:max_chars]
+                + "\n\n[... content truncated due to context length limit ...]"
+            )
 
     def should_chunk_content(self, content: str) -> bool:
         """Check if content should be chunked based on context length.
-        
+
         Args:
             content: Content to check
-            
+
         Returns:
             True if content should be chunked
         """
         max_context_length = self.get_max_context_length()
         content_tokens = self._count_tokens(content)
-        
+
         # Reserve space for response and system prompt
         response_buffer = 1000
         system_prompt_buffer = 500
         available_tokens = max_context_length - response_buffer - system_prompt_buffer
-        
+
         return content_tokens > available_tokens
 
     def _extract_response(self, result) -> str:
