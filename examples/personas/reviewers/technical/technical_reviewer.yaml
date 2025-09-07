@@ -35,5 +35,6 @@ prompt_template: |
   {content}
 
 model_config:
+  model_id: "qwen/qwen3-4b-2507"  # Use standard model for technical reviews
   temperature: 0.3
   max_tokens: 1500

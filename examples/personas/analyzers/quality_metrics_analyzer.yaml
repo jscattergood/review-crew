@@ -48,5 +48,6 @@ prompt_template: |
   Focus on providing quantifiable insights that can drive data-driven quality improvements.
 
 model_config:
+  model_id: "qwen/qwen3-4b-thinking-2507"  # Use reasoning model for quantitative analysis
   temperature: 0.2
   max_tokens: 1600

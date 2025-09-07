@@ -50,7 +50,7 @@ def cli():
 @click.option(
     "--max-context-length",
     type=int,
-    help="Maximum context length for analysis (default: 4096, enables chunking if exceeded)",
+    help="[DEPRECATED] Maximum context length for analysis. Now configured per-model in persona files.",
 )
 @click.option(
     "--include-context",
@@ -162,8 +162,13 @@ def review(
         model_config["base_url"] = model_url
     if model_id:
         model_config["model_id"] = model_id
-    # Set max_context_length with default value of 4096
-    model_config["max_context_length"] = max_context_length or 4096
+    
+    # Deprecation warning for max_context_length CLI option
+    if max_context_length:
+        click.echo("⚠️  Warning: --max-context-length is deprecated. Context length is now configured per-model in persona files.")
+        click.echo("   This CLI option will be ignored in favor of model-specific settings.")
+    
+    # Note: max_context_length is now handled per-agent based on their model configuration
 
     # Initialize conversation manager
     try:

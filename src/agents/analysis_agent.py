@@ -12,8 +12,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-import tiktoken
-
 from ..config.persona_loader import PersonaConfig
 from .base_agent import BaseAgent
 
@@ -66,12 +64,16 @@ class AnalysisAgent(BaseAgent):
 
         Args:
             reviews: List of review results from other agents
-            max_context_length: Maximum context length for chunking (if None, no chunking)
+            max_context_length: Maximum context length for chunking (if None, uses model-specific default)
 
         Returns:
             AnalysisResult with synthesized analysis
         """
         # Persona is guaranteed to exist since we pass it in constructor
+
+        # Use model-specific context length if not explicitly provided
+        if max_context_length is None:
+            max_context_length = self.get_max_context_length()
 
         # Check if we need to use chunking strategy
         if max_context_length and self._should_chunk(reviews, max_context_length):
@@ -125,10 +127,9 @@ class AnalysisAgent(BaseAgent):
         Returns:
             True if chunking is needed
         """
-        # Count actual tokens using tiktoken
+        # Count actual tokens using base agent method
         reviews_text = self._format_reviews_for_analysis(reviews)
-        encoding = tiktoken.get_encoding("cl100k_base")
-        reviews_tokens = len(encoding.encode(reviews_text))
+        reviews_tokens = self._count_tokens(reviews_text)
 
         # Add buffer for prompt template and response
         prompt_buffer = 800  # tokens for prompt template
@@ -287,10 +288,9 @@ class AnalysisAgent(BaseAgent):
         current_chunk_tokens = 0
 
         for review in reviews:
-            # Count actual tokens for this review
+            # Count actual tokens for this review using base agent method
             review_text = self._format_single_review_for_analysis(review)
-            encoding = tiktoken.get_encoding("cl100k_base")
-            review_tokens = len(encoding.encode(review_text))
+            review_tokens = self._count_tokens(review_text)
 
             # If adding this review would exceed the limit, start a new chunk
             if (
@@ -452,8 +452,9 @@ Focus on creating a comprehensive synthesis that captures the full scope of all 
                 ]
 
                 # Process using the specialized analysis method with timing
+                # Use model-specific context length for chunking
                 start_time = time.time()
-                analysis_result = await self.analyze(reviews)
+                analysis_result = await self.analyze(reviews)  # Will use model-specific context length
                 execution_time = time.time() - start_time
 
             # Format analysis result as text for the response
