@@ -286,7 +286,7 @@ class LoggingManager:
     
     def _update_latest_symlink(self) -> None:
         """Update the 'latest' symlink to point to current session."""
-        if not self.session_dir:
+        if not self.session_dir or not self.session_id:
             return
         
         latest_link = self.base_log_dir / "latest"
