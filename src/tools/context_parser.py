@@ -70,6 +70,8 @@ def extract_essay_content(content: str) -> str:
         r"Content:\s*\n",
         r"Text to analyze:\s*\n",
         r"Document:\s*\n",
+        # Note: Multi-agent graph markers like "## Primary Document" are handled
+        # by specialized logic below, not by simple pattern matching
     ]
 
     for marker in essay_markers:
@@ -78,6 +80,164 @@ def extract_essay_content(content: str) -> str:
             # Return everything after the marker
             essay_content = content[match.end() :].strip()
             return essay_content
+
+    # Handle multi-agent graph output format
+    # First check if it's a string representation of a list structure
+    if content.startswith("[{") and "Original Task:" in content:
+        # Try to parse the string representation and extract the actual content
+        import ast
+
+        try:
+            # Clean up the string and try to parse it
+            # This handles the format: "[{'text': '...'}, {'text': '...'}, ...]"
+            parsed = ast.literal_eval(content)
+            if isinstance(parsed, list):
+                # Extract text from each dictionary and combine
+                text_parts = []
+                for item in parsed:
+                    if isinstance(item, dict) and "text" in item:
+                        text_parts.append(item["text"])
+
+                if text_parts:
+                    combined_text = "\n".join(text_parts)
+                    # Now process the combined text to extract essay content
+                    # Look for the actual essay content after metadata
+                    lines = combined_text.split("\n")
+                    essay_start_idx = None
+
+                    for i, line in enumerate(lines):
+                        # Skip metadata lines and find where essay content starts
+                        line_stripped = line.strip()
+                        if (
+                            line_stripped
+                            and not line_stripped.startswith("Original Task:")
+                            and not line_stripped.startswith("Inputs from")
+                            and not line_stripped.startswith("From document_processor:")
+                            and not line_stripped.startswith("- Agent:")
+                            and not line_stripped.startswith("•")
+                            and not line_stripped.startswith("**File:**")
+                            and not line_stripped.startswith("## Primary Document")
+                        ):
+                            essay_start_idx = i
+                            break
+
+                    if essay_start_idx is not None:
+                        essay_lines = lines[essay_start_idx:]
+                        essay_content = "\n".join(essay_lines).strip()
+
+                        # Clean up any remaining artifacts like '"}]' at the end
+                        essay_content = re.sub(r'["\}\]]+$', "", essay_content)
+
+                        return essay_content.strip()
+
+                    # If no essay start found, try to extract from the last text part directly
+                    if text_parts:
+                        last_part = text_parts[-1]
+                        # This should contain the actual document content
+                        # Look for content after file metadata
+                        if "**File:**" in last_part:
+                            lines = last_part.split("\n")
+                            content_start = None
+
+                            for i, line in enumerate(lines):
+                                line_stripped = line.strip()
+                                if (
+                                    line_stripped
+                                    and not line_stripped.startswith("•")
+                                    and not line_stripped.startswith("**File:**")
+                                    and not line_stripped.startswith("- Agent:")
+                                ):
+                                    content_start = i
+                                    break
+
+                            if content_start is not None:
+                                content_lines = lines[content_start:]
+                                essay_content = "\n".join(content_lines).strip()
+                                # Clean up artifacts
+                                essay_content = re.sub(r'["\}\]]+$', "", essay_content)
+                                return essay_content.strip()
+        except (ValueError, SyntaxError):
+            # If parsing fails, continue with other methods
+            pass
+
+    # Look for content that starts with multi-agent metadata
+    if "Original Task:" in content and (
+        "From document_processor:" in content or "document_processor" in content
+    ):
+        # Find where the actual essay content starts
+        lines = content.split("\n")
+        essay_start_idx = None
+
+        for i, line in enumerate(lines):
+            # Look for the line that contains the actual document start
+            if "## Primary Document" in line:
+                # Skip metadata lines after this
+                for j in range(i + 1, len(lines)):
+                    next_line = lines[j].strip()
+                    # Skip bullet points, file markers, and empty lines
+                    if (
+                        next_line
+                        and not next_line.startswith("•")
+                        and not next_line.startswith("**File:**")
+                        and not next_line.startswith("**Source:**")
+                        and not next_line.startswith("- Agent:")
+                    ):
+                        essay_start_idx = j
+                        break
+                break
+
+        if essay_start_idx is not None:
+            # Join lines from essay start to end and filter out any remaining metadata
+            essay_lines = []
+            for line in lines[essay_start_idx:]:
+                line_stripped = line.strip()
+                # Filter out any remaining metadata lines
+                if (
+                    line_stripped
+                    and not line_stripped.startswith("•")
+                    and not line_stripped.startswith("**File:**")
+                    and not line_stripped.startswith("**Source:**")
+                    and not line_stripped.startswith("- Agent:")
+                    and not line_stripped.startswith("From document_processor:")
+                    and "**File:**" not in line_stripped
+                    and "**Source:**" not in line_stripped
+                ):  # Also catch embedded file markers
+                    essay_lines.append(line)
+
+            essay_content = "\n".join(essay_lines).strip()
+            return essay_content
+        else:
+            # If no clear start found, try filtering from the beginning
+            essay_lines = []
+            found_essay_start = False
+
+            for line in lines:
+                line_stripped = line.strip()
+
+                # Skip metadata lines
+                if (
+                    line_stripped.startswith("Original Task:")
+                    or line_stripped.startswith("Inputs from")
+                    or line_stripped.startswith("From document_processor:")
+                    or line_stripped.startswith("- Agent:")
+                    or line_stripped.startswith("•")
+                    or line_stripped.startswith("**File:**")
+                    or line_stripped.startswith("**Source:**")
+                    or line_stripped.startswith("## Primary Document")
+                ):
+                    continue
+
+                # If we find actual content (not empty, not metadata)
+                if line_stripped and not found_essay_start:
+                    found_essay_start = True
+
+                # Include all lines after we find essay content
+                if found_essay_start:
+                    essay_lines.append(line)
+
+            if essay_lines:
+                essay_content = "\n".join(essay_lines).strip()
+                return essay_content
 
     # Fallback: Look for content after assignment context patterns
     # If we see assignment-like patterns, try to find where the actual content starts

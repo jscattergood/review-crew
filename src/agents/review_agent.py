@@ -54,7 +54,9 @@ class ReviewAgent(BaseAgent):
 
         if tools_enabled:
             # Enhanced review with objective analysis data
-            analysis = self.get_content_analysis(content)
+            # Extract clean essay content for tool analysis
+            clean_content = self._extract_essay_content(content)
+            analysis = self.get_content_analysis(clean_content)
             analysis_text = self.format_analysis_for_prompt(analysis)
 
             if analysis_text:

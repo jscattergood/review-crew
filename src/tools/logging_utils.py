@@ -68,11 +68,18 @@ def log_tool_execution(tool_name: str) -> Callable[[F], F]:
 
                 # Log result summary (avoid logging huge results)
                 if hasattr(result, "__dict__"):
-                    # For dataclass objects, log the field names and types
-                    result_summary = {
-                        field: type(getattr(result, field)).__name__
-                        for field in result.__dict__.keys()
-                    }
+                    # For dataclass objects, log the field names and values (truncated if needed)
+                    result_summary = {}
+                    for field in result.__dict__.keys():
+                        value = getattr(result, field)
+                        if isinstance(value, str) and len(value) > 100:
+                            result_summary[field] = f"{value[:100]}... (truncated)"
+                        elif isinstance(value, (list, dict)) and len(str(value)) > 200:
+                            result_summary[field] = (
+                                f"{type(value).__name__} with {len(value)} items"
+                            )
+                        else:
+                            result_summary[field] = value
                     logger.info(f"Result summary: {result_summary}")
                 else:
                     result_str = str(result)

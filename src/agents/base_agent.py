@@ -968,8 +968,8 @@ Be professional but thorough in your analysis."""
         """
         Extract just the essay content from full content with context.
 
-        Looks for markers like "ESSAY TO REVIEW:", "Content:", etc. and returns
-        the actual essay text without the assignment context.
+        Uses the context_parser.extract_essay_content function which handles
+        both traditional markers and multi-agent graph format.
 
         Args:
             full_content: Full content including context and essay
@@ -977,37 +977,10 @@ Be professional but thorough in your analysis."""
         Returns:
             Just the essay content for analysis
         """
-        # Common markers that indicate where essay content starts
-        markers = [
-            r"ESSAY TO REVIEW:\s*\n",
-            r"Content to review:\s*\n",
-            r"Content:\s*\n",
-            r"Essay:\s*\n",
-            r"Text:\s*\n",
-        ]
+        # Use the more comprehensive extraction function from tools
+        from ..tools.context_parser import extract_essay_content
 
-        for marker in markers:
-            match = re.search(marker, full_content, re.IGNORECASE)
-            if match:
-                return full_content[match.end() :].strip()
-
-        # If no marker found, look for content after assignment context
-        # (assumes context ends with a line of dashes or double newline)
-        context_end_patterns = [
-            r"\n---+\s*\n",
-            r"\n\*\*ESSAY TO REVIEW:\*\*\s*\n",
-            r"\n\n[A-Z]",  # Double newline followed by capital letter (start of essay)
-        ]
-
-        for pattern in context_end_patterns:
-            match = re.search(pattern, full_content)
-            if match:
-                return full_content[
-                    match.end() - 1 :
-                ].strip()  # Keep the capital letter
-
-        # Fallback: return full content if no clear separation found
-        return full_content.strip()
+        return extract_essay_content(full_content)
 
     def format_analysis_for_prompt(self, analysis_results: dict[str, Any]) -> str:
         """
