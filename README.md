@@ -9,6 +9,7 @@ Review-Crew is a powerful, generic multi-agent review platform that uses AI agen
 - **Multi-Document Support**: Review entire document collections with manifest-driven configuration
 - **Intelligent Analysis**: Synthesis agents integrate feedback, resolve conflicts, and prioritize recommendations  
 - **Dynamic Writing Analysis Tools**: Context-aware word counting, readability analysis, and constraint validation
+- **Session-Based Logging**: Comprehensive logging with timestamped directories for each review process
 - **Clean Markdown Output**: Generates readable, shareable markdown reports with structured sections
 - **Generic & Extensible**: Works with any content type - not limited to specific domains
 - **Smart Context Management**: Automatic chunking for large reviews with smaller models
@@ -162,6 +163,12 @@ make review ARGS='"$(cat path/to/your/file.txt)"'
 
 # Review with output file
 make review-lm ARGS='path/to/file.txt --output results.txt'
+
+# Each review creates a timestamped log directory for debugging and analysis
+# Example output:
+# 📝 Started logging session: session_2025-01-15_14-30-25
+# 🚀 Running review...
+# 📁 Logs saved to: logs/session_2025-01-15_14-30-25
 
 # Multi-document reviews
 make review-lm ARGS='project-docs/'
@@ -784,6 +791,110 @@ The system generates clean, readable markdown output with structured sections:
 - **Synthesis & Recommendations** - Integrated multi-document insights
 
 All output is formatted as clean, readable markdown that can be easily reviewed, shared, or processed further.
+
+## Logging & Debugging
+
+Review-Crew provides comprehensive session-based logging to help you understand and debug the review process.
+
+### Session-Based Logging
+
+Each review process creates a timestamped session directory with organized logs:
+
+```
+logs/
+├── session_2025-01-15_14-30-25/          # Timestamped session
+│   ├── session_info.json                 # Session metadata & duration
+│   ├── conversation.log                   # High-level process flow
+│   ├── agents/                           # Individual agent logs
+│   │   ├── harvard_admissions_officer.log
+│   │   ├── stanford_admissions_officer.log
+│   │   ├── meta_analysis_specialist.log
+│   │   └── [other agent logs...]
+│   └── tools/                            # Tool execution logs
+│       ├── text_metrics.log
+│       ├── essay_strength_analysis.log
+│       ├── cliche_detection.log
+│       └── constraint_validation.log
+└── latest -> session_2025-01-15_14-30-25  # Symlink to most recent
+```
+
+### Log Contents
+
+**Session Info (`session_info.json`)**:
+```json
+{
+  "session_id": "session_2025-01-15_14-30-25",
+  "start_time": "2025-01-15T14:30:25.123456",
+  "end_time": "2025-01-15T14:42:18.654321",
+  "duration_seconds": 713.53,
+  "content_info": "input/primary_essay",
+  "selected_agents": ["harvard_admissions_officer", "stanford_admissions_officer"],
+  "model_provider": "lm_studio",
+  "model_config": {}
+}
+```
+
+**Conversation Log (`conversation.log`)**:
+- Review process start/end events
+- Content type detection (file/directory/direct content)
+- Agent selection and configuration
+- Performance metrics and error tracking
+
+**Agent Logs (`agents/*.log`)**:
+- Complete prompts sent to each agent
+- Model configuration (provider, model ID, temperature, context length)
+- Response metadata and timing
+- Same detailed content as the previous logging system
+
+**Tool Logs (`tools/*.log`)**:
+- Tool execution start/completion with timing
+- Input parameters (truncated for readability)
+- Output summaries and result types
+- Error tracking for failed tool executions
+
+### Accessing Logs
+
+**View the most recent session:**
+```bash
+# Navigate to latest session
+cd logs/latest
+
+# View session summary
+cat session_info.json
+
+# Check conversation flow
+cat conversation.log
+
+# View specific agent logs
+cat agents/harvard_admissions_officer.log
+```
+
+**Find specific sessions:**
+```bash
+# List all sessions
+ls logs/session_*
+
+# Find sessions by date
+ls logs/session_2025-01-15_*
+
+# Search for sessions with specific content
+grep -r "input/primary_essay" logs/*/session_info.json
+```
+
+### Log Retention
+
+- Logs are organized by session for easy management
+- Each session is self-contained with all relevant information
+- The `latest` symlink always points to the most recent session
+- Old sessions can be archived or deleted as needed
+
+### Benefits
+
+✅ **Traceability**: Every review process is fully logged and traceable  
+✅ **Debugging**: Easy to identify issues within specific sessions  
+✅ **Performance Analysis**: Session duration and timing data for optimization  
+✅ **Audit Trail**: Complete record of what agents and tools were used  
+✅ **Reproducibility**: Session info enables reproducing specific review configurations  
 
 ## Troubleshooting
 

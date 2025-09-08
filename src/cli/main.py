@@ -12,6 +12,7 @@ import click
 
 from ..config.persona_loader import PersonaLoader
 from ..conversation.manager import ConversationManager
+from ..logging.manager import LoggingManager
 
 
 @click.group()
@@ -159,6 +160,17 @@ def review(
 
     # Note: Context length is now handled per-agent based on their model configuration
 
+    # Initialize logging session
+    logging_manager = LoggingManager.get_instance()
+    content_info = content_text[:100] + "..." if len(content_text) > 100 else content_text
+    session_id = logging_manager.start_session(
+        content_info=content_info,
+        selected_agents=list(agents) if agents else None,
+        model_provider=provider,
+        model_config=model_config
+    )
+    click.echo(f"📝 Started logging session: {session_id}")
+
     # Initialize conversation manager
     try:
         manager = ConversationManager(
@@ -168,6 +180,7 @@ def review(
         )
     except Exception as e:
         click.echo(f"❌ Error initializing conversation manager: {e}", err=True)
+        logging_manager.end_session()
         return
 
     # Convert agents tuple to list
@@ -222,6 +235,12 @@ def review(
 
     except Exception as e:
         click.echo(f"❌ Error during review: {e}", err=True)
+    finally:
+        # End logging session
+        logging_manager.end_session()
+        session_dir = logging_manager.get_session_dir()
+        if session_dir:
+            click.echo(f"📁 Logs saved to: {session_dir}")
 
 
 @cli.command()
@@ -278,11 +297,23 @@ def single(content: str, agent: str, output: str | None) -> None:
         click.echo("❌ No content provided for review", err=True)
         return
 
+    # Initialize logging session
+    logging_manager = LoggingManager.get_instance()
+    content_info = content_text[:100] + "..." if len(content_text) > 100 else content_text
+    session_id = logging_manager.start_session(
+        content_info=content_info,
+        selected_agents=[agent],
+        model_provider="bedrock",  # Default for single command
+        model_config={}
+    )
+    click.echo(f"📝 Started logging session: {session_id}")
+
     # Initialize conversation manager
     try:
         manager = ConversationManager()
     except Exception as e:
         click.echo(f"❌ Error initializing conversation manager: {e}", err=True)
+        logging_manager.end_session()
         return
 
     # Run single agent review
@@ -307,6 +338,12 @@ def single(content: str, agent: str, output: str | None) -> None:
 
     except Exception as e:
         click.echo(f"❌ Error during review: {e}", err=True)
+    finally:
+        # End logging session
+        logging_manager.end_session()
+        session_dir = logging_manager.get_session_dir()
+        if session_dir:
+            click.echo(f"📁 Logs saved to: {session_dir}")
 
 
 @cli.command()

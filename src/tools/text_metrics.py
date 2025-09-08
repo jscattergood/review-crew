@@ -10,6 +10,8 @@ import string
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from .logging_utils import log_tool_execution
+
 
 @dataclass
 class TextMetrics:
@@ -64,6 +66,7 @@ class ConstraintValidation:
     optimal_range: bool = True
 
 
+@log_tool_execution("text_metrics")
 def get_text_metrics(content: str) -> TextMetrics:
     """
     Get comprehensive text metrics for writing analysis.
@@ -301,6 +304,7 @@ def analyze_short_answers(content: str, character_limit: int) -> dict[str, Any]:
     return results
 
 
+@log_tool_execution("constraint_validation")
 def validate_constraints(
     content: str,
     word_limit: int | None = None,

@@ -9,6 +9,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from .logging_utils import log_tool_execution
+
 
 @dataclass
 class EssayStrengthAnalysis:
@@ -67,6 +69,7 @@ class PersonalVoiceAnalysis:
     generic_vs_personal_ratio: float
 
 
+@log_tool_execution("essay_strength_analysis")
 def analyze_essay_strength(content: str) -> EssayStrengthAnalysis:
     """
     Analyze essay strength for college admissions impact.
@@ -148,6 +151,7 @@ def analyze_essay_strength(content: str) -> EssayStrengthAnalysis:
     )
 
 
+@log_tool_execution("cliche_detection")
 def detect_cliches(content: str) -> ClicheAnalysis:
     """
     Detect clichés and overused phrases that hurt college application essays.

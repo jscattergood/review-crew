@@ -19,6 +19,7 @@ from strands.telemetry.metrics import EventLoopMetrics
 from strands.types.content import ContentBlock, Message
 
 from ..config.persona_loader import PersonaConfig
+from ..logging.manager import LoggingManager
 
 
 class BaseAgent(MultiAgentBase):
@@ -114,33 +115,32 @@ class BaseAgent(MultiAgentBase):
         return self._system_prompt
 
     def _setup_agent_logging(self) -> None:
-        """Setup dedicated logging for this agent."""
-        # Create logs directory if it doesn't exist
-        log_dir = "logs"
-        os.makedirs(log_dir, exist_ok=True)
-
-        # Create agent-specific logger
-        agent_name = self.persona.name.replace(" ", "_").lower()
-        self.logger_name = f"agent_{agent_name}"
-        self.logger = logging.getLogger(self.logger_name)
-
-        # Avoid duplicate handlers
-        if not self.logger.handlers:
-            self.logger.setLevel(logging.INFO)
-
-            # Create file handler for agent-specific log
-            log_file = os.path.join(log_dir, f"{agent_name}_prompts.log")
-            file_handler = logging.FileHandler(log_file)
-            file_handler.setLevel(logging.INFO)
-
-            # Create formatter
-            formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
-            file_handler.setFormatter(formatter)
-
-            # Add handler to logger
-            self.logger.addHandler(file_handler)
+        """Setup dedicated logging for this agent using the centralized logging manager."""
+        try:
+            # Get the logging manager instance
+            logging_manager = LoggingManager.get_instance()
+            
+            # Get agent-specific logger from the logging manager
+            self.logger = logging_manager.get_agent_logger(self.persona.name)
+            self.logger_name = f"agent_{self.persona.name.replace(' ', '_').lower()}"
+            
+        except RuntimeError:
+            # Fallback: If no session is active, create a basic logger
+            # This can happen during testing or if logging isn't properly initialized
+            agent_name = self.persona.name.replace(" ", "_").lower()
+            self.logger_name = f"agent_{agent_name}"
+            self.logger = logging.getLogger(self.logger_name)
+            
+            if not self.logger.handlers:
+                self.logger.setLevel(logging.INFO)
+                # Create a simple console handler as fallback
+                console_handler = logging.StreamHandler()
+                console_handler.setLevel(logging.INFO)
+                formatter = logging.Formatter(
+                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+                )
+                console_handler.setFormatter(formatter)
+                self.logger.addHandler(console_handler)
 
     def _log_prompt(self, prompt: str, prompt_type: str = "review") -> None:
         """Log the prompt to the dedicated agent log.
