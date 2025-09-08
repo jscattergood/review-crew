@@ -162,12 +162,14 @@ def review(
 
     # Initialize logging session
     logging_manager = LoggingManager.get_instance()
-    content_info = content_text[:100] + "..." if len(content_text) > 100 else content_text
+    content_info = (
+        content_text[:100] + "..." if len(content_text) > 100 else content_text
+    )
     session_id = logging_manager.start_session(
         content_info=content_info,
         selected_agents=list(agents) if agents else None,
         model_provider=provider,
-        model_config=model_config
+        model_config=model_config,
     )
     click.echo(f"📝 Started logging session: {session_id}")
 
@@ -299,12 +301,14 @@ def single(content: str, agent: str, output: str | None) -> None:
 
     # Initialize logging session
     logging_manager = LoggingManager.get_instance()
-    content_info = content_text[:100] + "..." if len(content_text) > 100 else content_text
+    content_info = (
+        content_text[:100] + "..." if len(content_text) > 100 else content_text
+    )
     session_id = logging_manager.start_session(
         content_info=content_info,
         selected_agents=[agent],
         model_provider="bedrock",  # Default for single command
-        model_config={}
+        model_config={},
     )
     click.echo(f"📝 Started logging session: {session_id}")
 

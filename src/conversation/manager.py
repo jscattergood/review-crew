@@ -55,7 +55,7 @@ class ConversationManager:
         self.agents: list[ReviewAgent] = self.graph_builder.review_agents
         self.context_agents: list[ContextAgent] = self.graph_builder.context_agents
         self.analysis_agents: list[AnalysisAgent] = self.graph_builder.analysis_agents
-        
+
         # Get logging manager instance
         self.logging_manager = LoggingManager.get_instance()
 
@@ -103,43 +103,63 @@ class ConversationManager:
         self.logging_manager.log_conversation_event(
             "Starting review process",
             {
-                "content_type": "file/directory" if Path(content).exists() else "direct_content",
-                "content_preview": content[:100] + "..." if len(content) > 100 else content,
+                "content_type": "file/directory"
+                if Path(content).exists()
+                else "direct_content",
+                "content_preview": content[:100] + "..."
+                if len(content) > 100
+                else content,
                 "has_context": context_data is not None,
                 "selected_agents": selected_agents,
-                "model_provider": self.model_provider
-            }
+                "model_provider": self.model_provider,
+            },
         )
-        
+
         try:
             # Check if content is a directory path for multi-document review
             content_path = Path(content)
             if content_path.exists() and content_path.is_dir():
-                self.logging_manager.log_conversation_event(f"Processing directory: {content_path}")
-                result = await self._run_graph_based_review(content_path, selected_agents)
+                self.logging_manager.log_conversation_event(
+                    f"Processing directory: {content_path}"
+                )
+                result = await self._run_graph_based_review(
+                    content_path, selected_agents
+                )
             elif content_path.exists() and content_path.is_file():
-                self.logging_manager.log_conversation_event(f"Processing file: {content_path}")
-                result = await self._run_graph_based_review(content_path, selected_agents)
+                self.logging_manager.log_conversation_event(
+                    f"Processing file: {content_path}"
+                )
+                result = await self._run_graph_based_review(
+                    content_path, selected_agents
+                )
             else:
                 self.logging_manager.log_conversation_event("Processing direct content")
                 # Direct content - use simple graph
                 result = await self._run_simple_graph_review(content, selected_agents)
-            
+
             # Log completion
             self.logging_manager.log_conversation_event(
                 "Review process completed",
                 {
                     "review_count": len(result.reviews),
-                    "analysis_count": len(result.analysis_results) if result.analysis_results else 0,
-                    "context_count": len(result.context_results) if result.context_results else 0,
-                    "errors": len(result.analysis_errors) if result.analysis_errors else 0
-                }
+                    "analysis_count": len(result.analysis_results)
+                    if result.analysis_results
+                    else 0,
+                    "context_count": len(result.context_results)
+                    if result.context_results
+                    else 0,
+                    "errors": len(result.analysis_errors)
+                    if result.analysis_errors
+                    else 0,
+                },
             )
-            
+
             return result
-            
+
         except Exception as e:
-            self.logging_manager.log_conversation_event(f"Review process failed: {str(e)}")
+            self.logging_manager.log_conversation_event(
+                f"Review process failed: {str(e)}"
+            )
             raise
 
     # ========================================

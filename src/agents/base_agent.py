@@ -119,18 +119,18 @@ class BaseAgent(MultiAgentBase):
         try:
             # Get the logging manager instance
             logging_manager = LoggingManager.get_instance()
-            
+
             # Get agent-specific logger from the logging manager
             self.logger = logging_manager.get_agent_logger(self.persona.name)
             self.logger_name = f"agent_{self.persona.name.replace(' ', '_').lower()}"
-            
+
         except RuntimeError:
             # Fallback: If no session is active, create a basic logger
             # This can happen during testing or if logging isn't properly initialized
             agent_name = self.persona.name.replace(" ", "_").lower()
             self.logger_name = f"agent_{agent_name}"
             self.logger = logging.getLogger(self.logger_name)
-            
+
             if not self.logger.handlers:
                 self.logger.setLevel(logging.INFO)
                 # Create a simple console handler as fallback
