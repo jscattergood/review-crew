@@ -787,31 +787,6 @@ All output is formatted as clean, readable markdown that can be easily reviewed,
 
 ## Troubleshooting
 
-### Recent Improvements (Enhanced Tools & Type Safety)
-
-**✅ Fixed Issues:**
-- **Agent Hallucination**: Agents no longer generate fake responses for missing/invalid content
-- **Raw JSON Output**: Clean text extraction from LLM responses (no more `{'role': 'assistant'...}` in output)
-- **Sequential Processing**: All agents now run in parallel for much faster reviews
-- **Error Handling**: Robust error detection and graceful failure handling
-- **Test Reliability**: All tests now pass consistently
-- **Word Count Accuracy**: Tools now correctly extract essay content (668 words) vs. full document (726 words)
-- **Type Safety**: Comprehensive MyPy type checking eliminates runtime type errors
-- **Import Errors**: Fixed all module import issues (StopReason, EventLoopMetrics, OllamaModel)
-- **Union Type Handling**: Proper type checking for AgentResult | MultiAgentResult | Exception unions
-
-**🎯 Performance Gains:**
-- **Parallel Execution**: 3-5x faster reviews with multiple agents
-- **Better Resource Usage**: Strands Graph optimizes agent scheduling
-- **Cleaner Output**: Structured markdown with proper section formatting
-- **Precise Analysis**: Tools provide exact measurements vs. LLM approximations (±5-15% error)
-
-**🛠️ Code Quality Improvements:**
-- **Type Safety**: 100% MyPy compliance across all modules
-- **Error Prevention**: Union type checking prevents attribute access errors
-- **Maintainability**: Explicit type annotations improve code readability
-- **Robustness**: Proper exception handling and graceful degradation
-
 ### Common Issues
 
 **LM Studio Connection Issues:**
@@ -864,39 +839,6 @@ python -m src.cli.main status  # Should show reviewers and analyzers
 
 # Or edit .env file to change default
 echo "REVIEW_CREW_PERSONAS_DIR=examples/personas" > .env
-```
-
-**Writing Tools Issues:**
-```bash
-# Test tools functionality
-python -c "
-from src.tools.text_metrics import get_text_metrics
-from src.tools.context_parser import extract_essay_content
-result = get_text_metrics('This is a test essay with multiple words.')
-print(f'Word count: {result.word_count}')
-"
-
-# Check if tools are enabled for a persona
-python -c "
-from src.config.persona_loader import PersonaLoader
-loader = PersonaLoader()
-personas = loader.load_reviewer_personas()
-for p in personas:
-    if hasattr(p, 'tools_config') and p.tools_config:
-        print(f'{p.name}: tools enabled')
-"
-
-# Test context extraction
-python -c "
-from src.tools.context_parser import extract_essay_content
-content = '''**ASSIGNMENT CONTEXT:**
-- Word Limit: 650 words
-
-**ESSAY TO REVIEW:**
-This is the actual essay content.'''
-extracted = extract_essay_content(content)
-print(f'Extracted: {extracted}')
-"
 ```
 
 **Virtual Environment Issues:**
