@@ -47,6 +47,11 @@ class ResultConverter:
         # Determine content to use
         content = self._determine_content(graph_result, original_content)
 
+        # Extract input source and manifest information
+        input_source, manifest_path = self._extract_input_source_info(
+            graph_result, original_content
+        )
+
         return ConversationResult(
             content=content,
             reviews=reviews,
@@ -56,6 +61,8 @@ class ResultConverter:
             context_results=context_results,
             original_content=original_content,
             analysis_errors=analysis_errors,
+            input_source=input_source,
+            manifest_path=manifest_path,
         )
 
     def _extract_reviews(self, graph_result: MultiAgentResult) -> list[ReviewResult]:
@@ -284,6 +291,44 @@ class ResultConverter:
 
         # Fallback to original content or empty string
         return original_content or ""
+
+    def _extract_input_source_info(
+        self, graph_result: MultiAgentResult, original_content: str | None
+    ) -> tuple[str | None, str | None]:
+        """Extract input source and manifest path information from graph result.
+
+        Args:
+            graph_result: Result from Strands graph execution
+            original_content: Original content if available
+
+        Returns:
+            Tuple of (input_source, manifest_path)
+        """
+        # Extract document processor info
+        doc_info = self.extract_document_info(graph_result)
+
+        if doc_info and doc_info.get("original_path"):
+            # This was a file/directory input
+            input_source = str(doc_info["original_path"])
+
+            # Check if there was a manifest
+            manifest_path = None
+            if doc_info.get("has_manifest"):
+                from pathlib import Path
+
+                input_path = Path(input_source)
+                if input_path.is_dir():
+                    manifest_path = str(input_path / "manifest.yaml")
+                elif input_path.is_file():
+                    # Check for manifest in the same directory as the file
+                    potential_manifest = input_path.parent / "manifest.yaml"
+                    if potential_manifest.exists():
+                        manifest_path = str(potential_manifest)
+
+            return input_source, manifest_path
+        else:
+            # This was direct content input
+            return "Direct input", None
 
     def _is_review_node(self, node_id: str) -> bool:
         """Check if a node is a review agent.

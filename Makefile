@@ -161,8 +161,6 @@ review-lm:
 	@echo "🎭 Starting Review-Crew with LM Studio..."
 	$(call run_with_env,python -m src.cli.main review $(ARGS) --provider lm_studio,python3 -m src.cli.main review $(ARGS) --provider lm_studio)
 
-
-
 agents:
 	@echo "🎭 Available agents:"
 	$(call run_with_env,python -m src.cli.main agents,python3 -m src.cli.main agents)

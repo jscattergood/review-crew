@@ -6,6 +6,7 @@ This module provides the command-line interface for running multi-agent reviews.
 
 import asyncio
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -27,7 +28,12 @@ def cli() -> None:
 @click.option(
     "--agents", "-a", multiple=True, help="Specific agents to use (default: all)"
 )
-@click.option("--output", "-o", type=click.Path(), help="Save results to file")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    help="Save results to file (default: auto-generated timestamped directory in output/)",
+)
 @click.option("--no-content", is_flag=True, help="Hide original content in output")
 @click.option(
     "--provider",
@@ -224,8 +230,9 @@ def review(
 
         # Analysis output now includes any context generation defined in analyzer personas
 
-        # Save to file if requested
+        # Save to file - either specified output or auto-generated timestamped directory
         if output:
+            # User specified output file
             try:
                 output_content = formatted_output
 
@@ -234,6 +241,21 @@ def review(
                 click.echo(f"💾 Results saved to: {output}")
             except Exception as e:
                 click.echo(f"❌ Error saving to {output}: {e}", err=True)
+        else:
+            # Auto-generate timestamped output directory and file
+            try:
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                output_dir = Path("output") / f"review_{timestamp}"
+                output_dir.mkdir(parents=True, exist_ok=True)
+
+                output_file = output_dir / "results.md"
+                output_content = formatted_output
+
+                with open(output_file, "w", encoding="utf-8") as f:
+                    f.write(output_content)
+                click.echo(f"💾 Results automatically saved to: {output_file}")
+            except Exception as e:
+                click.echo(f"❌ Error saving to auto-generated output: {e}", err=True)
 
     except Exception as e:
         click.echo(f"❌ Error during review: {e}", err=True)
@@ -276,7 +298,12 @@ def agents() -> None:
 @cli.command()
 @click.argument("content", type=str)
 @click.option("--agent", "-a", required=True, help="Specific agent to use")
-@click.option("--output", "-o", type=click.Path(), help="Save results to file")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    help="Save results to file (default: auto-generated timestamped directory in output/)",
+)
 def single(content: str, agent: str, output: str | None) -> None:
     """Review content with a single agent.
 
@@ -331,14 +358,29 @@ def single(content: str, agent: str, output: str | None) -> None:
         )
         click.echo(formatted_output)
 
-        # Save to file if requested
+        # Save to file - either specified output or auto-generated timestamped directory
         if output:
+            # User specified output file
             try:
                 with open(output, "w", encoding="utf-8") as f:
                     f.write(formatted_output)
                 click.echo(f"💾 Results saved to: {output}")
             except Exception as e:
                 click.echo(f"❌ Error saving to {output}: {e}", err=True)
+        else:
+            # Auto-generate timestamped output directory and file
+            try:
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                output_dir = Path("output") / f"review_{timestamp}"
+                output_dir.mkdir(parents=True, exist_ok=True)
+
+                output_file = output_dir / "results.md"
+
+                with open(output_file, "w", encoding="utf-8") as f:
+                    f.write(formatted_output)
+                click.echo(f"💾 Results automatically saved to: {output_file}")
+            except Exception as e:
+                click.echo(f"❌ Error saving to auto-generated output: {e}", err=True)
 
     except Exception as e:
         click.echo(f"❌ Error during review: {e}", err=True)

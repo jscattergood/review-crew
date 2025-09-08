@@ -34,6 +34,8 @@ class ConversationResult:
     context_results: list[ContextResult] | None = None
     original_content: str | None = None
     analysis_errors: list[str] | None = None  # Track analysis failures separately
+    input_source: str | None = None  # Path to input file/directory or "direct input"
+    manifest_path: str | None = None  # Path to manifest file if used
 
     def __post_init__(self) -> None:
         if self.analysis_results is None:

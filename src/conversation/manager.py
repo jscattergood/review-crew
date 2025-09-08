@@ -233,6 +233,8 @@ class ConversationManager:
                     reviews=[],
                     timestamp=datetime.now(),
                     analysis_errors=["No valid content provided for review"],
+                    input_source="Direct input",
+                    manifest_path=None,
                 )
 
             # Build simple graph for direct content
@@ -294,6 +296,8 @@ class ConversationManager:
             analysis_errors=[
                 "Graph-based execution failed, legacy fallback not fully implemented"
             ],
+            input_source=str(content_path),
+            manifest_path=None,
         )
 
     async def _fallback_to_legacy_simple_review(
@@ -310,6 +314,8 @@ class ConversationManager:
             analysis_errors=[
                 "Graph-based execution failed, legacy fallback not fully implemented"
             ],
+            input_source="Direct input",
+            manifest_path=None,
         )
 
     # ========================================
@@ -434,6 +440,16 @@ class ConversationManager:
             # Add timestamp at the top of content section
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             output_parts.append(f"*Generated: {timestamp}*")
+
+            # Add input source information
+            if result.input_source:
+                if result.input_source == "Direct input":
+                    output_parts.append(f"*Source: {result.input_source}*")
+                else:
+                    output_parts.append(f"*Source: {result.input_source}*")
+                    if result.manifest_path:
+                        output_parts.append(f"*Manifest: {result.manifest_path}*")
+
             output_parts.append("")
             output_parts.append(result.content)
             output_parts.append("")
