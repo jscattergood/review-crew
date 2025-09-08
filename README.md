@@ -787,7 +787,7 @@ All output is formatted as clean, readable markdown that can be easily reviewed,
 
 ## Troubleshooting
 
-### Recent Improvements (v2.1 - Enhanced Tools & Type Safety)
+### Recent Improvements (Enhanced Tools & Type Safety)
 
 **✅ Fixed Issues:**
 - **Agent Hallucination**: Agents no longer generate fake responses for missing/invalid content
