@@ -11,6 +11,8 @@ This agent can perform different types of analysis based on the loaded persona:
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+from strands.multiagent.base import MultiAgentResult
+from strands.types.content import ContentBlock
 
 from ..config.persona_loader import PersonaConfig
 from .base_agent import BaseAgent
@@ -22,12 +24,12 @@ class AnalysisResult:
 
     synthesis: str
     personal_statement_summary: str | None = None
-    key_themes: list[str] = None
-    conflicting_feedback: list[dict[str, Any]] = None
-    priority_recommendations: list[str] = None
-    timestamp: datetime = None
+    key_themes: list[str] | None = None
+    conflicting_feedback: list[dict[str, Any]] | None = None
+    priority_recommendations: list[str] | None = None
+    timestamp: datetime | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now()
         if self.key_themes is None:
@@ -283,9 +285,9 @@ class AnalysisAgent(BaseAgent):
         # Available tokens for reviews in each chunk
         available_tokens = max_context_length - prompt_buffer - response_buffer
 
-        chunks = []
-        current_chunk = []
-        current_chunk_tokens = 0
+        chunks: list[list[dict[str, Any]]] = []
+        current_chunk: list[dict[str, Any]] = []
+        current_chunk_tokens: int = 0
 
         for review in reviews:
             # Count actual tokens for this review using base agent method
@@ -411,7 +413,9 @@ Focus on creating a comprehensive synthesis that captures the full scope of all 
 
         return f"**{agent_name}** ({agent_role}):\n{feedback_text}\n\n"
 
-    async def invoke_async_graph(self, task, **kwargs):
+    async def invoke_async_graph(
+        self, task: str | list[ContentBlock], **kwargs: Any
+    ) -> MultiAgentResult:
         """Process task asynchronously for graph execution using specialized analysis logic.
 
         Args:
@@ -457,7 +461,7 @@ Focus on creating a comprehensive synthesis that captures the full scope of all 
                 analysis_result = await self.analyze(
                     reviews
                 )  # Will use model-specific context length
-                execution_time = time.time() - start_time
+                execution_time = int(time.time() - start_time)
 
             # Format analysis result as text for the response
             response = analysis_result.synthesis
@@ -495,7 +499,7 @@ Focus on creating a comprehensive synthesis that captures the full scope of all 
                 results={
                     self.name: NodeResult(
                         result=AgentResult(
-                            stop_reason="error",
+                            stop_reason="end_turn",
                             message=Message(
                                 role="assistant",
                                 content=[
@@ -513,6 +517,6 @@ Focus on creating a comprehensive synthesis that captures the full scope of all 
                         status=Status.FAILED,
                     )
                 },
-                execution_time=0.0,
+                execution_time=0,
                 execution_count=1,
             )

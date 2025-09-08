@@ -9,6 +9,9 @@ The agent is completely abstract and domain-agnostic.
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+from strands.multiagent.base import MultiAgentResult
+from strands.types.content import ContentBlock
+
 
 from ..config.persona_loader import PersonaConfig
 from .base_agent import BaseAgent
@@ -20,9 +23,9 @@ class ContextResult:
 
     formatted_context: str
     context_summary: str
-    timestamp: datetime = None
+    timestamp: datetime | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
@@ -46,14 +49,14 @@ class ContextAgent(BaseAgent):
         # Initialize the base agent
         super().__init__(persona, model_provider, model_config)
 
-    async def process_context(self, context_data: str) -> ContextResult | None:
+    async def process_context(self, context_data: str) -> ContextResult:
         """Process and format contextual information using the contextualizer persona.
 
         Args:
             context_data: The raw context information to be processed and formatted
 
         Returns:
-            ContextResult with formatted context, or None if no contextualizer available
+            ContextResult with formatted context
         """
         # Check if we received an error instead of content
         if context_data == "ERROR_NO_CONTENT":
@@ -153,7 +156,9 @@ class ContextAgent(BaseAgent):
             ],
         }
 
-    async def invoke_async_graph(self, task, **kwargs):
+    async def invoke_async_graph(
+        self, task: str | list[ContentBlock], **kwargs: Any
+    ) -> MultiAgentResult:
         """Process task asynchronously for graph execution using specialized context logic.
 
         Args:
@@ -176,8 +181,8 @@ class ContextAgent(BaseAgent):
 
             # Process using the specialized context method with timing
             start_time = time.time()
-            context_result = await self.process_context(content)
-            execution_time = time.time() - start_time
+            context_result: ContextResult = await self.process_context(content)
+            execution_time = int(time.time() - start_time)
 
             # Format context result as text for the response
             response = f"**Context Summary:** {context_result.context_summary}\n\n**Formatted Context:** {context_result.formatted_context}"
@@ -215,7 +220,7 @@ class ContextAgent(BaseAgent):
                 results={
                     self.name: NodeResult(
                         result=AgentResult(
-                            stop_reason="error",
+                            stop_reason="end_turn",
                             message=Message(
                                 role="assistant",
                                 content=[
@@ -235,6 +240,6 @@ class ContextAgent(BaseAgent):
                         status=Status.FAILED,
                     )
                 },
-                execution_time=0.0,
+                execution_time=0,
                 execution_count=1,
             )

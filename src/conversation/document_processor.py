@@ -12,6 +12,7 @@ from typing import Any
 
 from strands.agent.agent_result import AgentResult
 from strands.multiagent.base import MultiAgentBase, MultiAgentResult, NodeResult, Status
+from strands.telemetry.metrics import EventLoopMetrics
 from strands.types.content import ContentBlock, Message
 
 from ..validation.document_validator import ValidationLevel
@@ -49,7 +50,9 @@ class DocumentProcessorNode(MultiAgentBase):
         super().__init__()
         self.name = name
 
-    def __call__(self, task: str | list[ContentBlock], **kwargs) -> MultiAgentResult:
+    def __call__(
+        self, task: str | list[ContentBlock], **kwargs: Any
+    ) -> MultiAgentResult:
         """Process documents synchronously.
 
         Args:
@@ -66,7 +69,7 @@ class DocumentProcessorNode(MultiAgentBase):
         return asyncio.run(self.invoke_async(task, **kwargs))
 
     async def invoke_async(
-        self, task: str | list[ContentBlock], **kwargs
+        self, task: str | list[ContentBlock], **kwargs: Any
     ) -> MultiAgentResult:
         """Process documents asynchronously.
 
@@ -82,7 +85,7 @@ class DocumentProcessorNode(MultiAgentBase):
             if isinstance(task, str):
                 task_str = task
             elif isinstance(task, list):
-                task_str = task[0].get("text")
+                task_str = task[0].get("text", "")
 
             content_path = Path(task_str)
 
@@ -117,7 +120,7 @@ class DocumentProcessorNode(MultiAgentBase):
                     role="assistant",
                     content=[ContentBlock(text=result.compiled_content)],
                 ),
-                metrics={},
+                metrics=EventLoopMetrics(),
                 state={
                     "document_processor_result": result,  # Store metadata for debugging
                     "document_type": result.document_type,
@@ -138,12 +141,12 @@ class DocumentProcessorNode(MultiAgentBase):
         except Exception as e:
             # Handle errors gracefully - return a clear error marker
             agent_result = AgentResult(
-                stop_reason="error",
+                stop_reason="end_turn",
                 message=Message(
                     role="assistant",
                     content=[ContentBlock(text="ERROR_NO_CONTENT")],
                 ),
-                metrics={},
+                metrics=EventLoopMetrics(),
                 state={"error": str(e)},
             )
 
@@ -331,7 +334,7 @@ class DocumentProcessorNode(MultiAgentBase):
         Returns:
             List of document dictionaries with 'name', 'content', and 'type' keys
         """
-        documents = []
+        documents: list[dict[str, str]] = []
 
         review_config = manifest_config.get("review_configuration", {})
         document_config = review_config.get("documents", {})
@@ -487,7 +490,7 @@ class DocumentProcessorNode(MultiAgentBase):
 
         try:
             with open(manifest_path, encoding="utf-8") as f:
-                manifest = yaml.safe_load(f)
+                manifest: dict[str, Any] = yaml.safe_load(f)
             return manifest
         except Exception as e:
             print(f"⚠️  Warning: Failed to parse manifest {manifest_path}: {e}")

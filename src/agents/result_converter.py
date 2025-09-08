@@ -8,6 +8,8 @@ ConversationResult format for backward compatibility with existing code.
 from datetime import datetime
 from typing import Any
 
+from strands.agent.agent_result import AgentResult
+
 from strands.multiagent.base import MultiAgentResult, Status
 
 from .analysis_agent import AnalysisResult
@@ -18,7 +20,7 @@ from .data_models import ConversationResult, ReviewResult
 class ResultConverter:
     """Converts Strands MultiAgentResult to ConversationResult format."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the result converter."""
         pass
 
@@ -70,7 +72,18 @@ class ResultConverter:
         for node_id, node_result in graph_result.results.items():
             # Skip non-review nodes
             if self._is_review_node(node_id):
-                agent_state = node_result.result.results[node_id].result.state
+                # Check if result is MultiAgentResult
+                if not isinstance(node_result.result, MultiAgentResult):
+                    continue
+
+                if node_id not in node_result.result.results:
+                    continue
+
+                nested_result = node_result.result.results[node_id].result
+                if not isinstance(nested_result, AgentResult):
+                    continue
+
+                agent_state = nested_result.state
 
                 # Extract agent information
                 agent_name = agent_state.get("agent_name", node_id)
@@ -78,9 +91,8 @@ class ResultConverter:
 
                 # Try to get clean response from message content first, fallback to state
                 try:
-                    agent_result = node_result.result.results[node_id].result
-                    if agent_result.message and agent_result.message["content"]:
-                        response = agent_result.message["content"][0]["text"]
+                    if nested_result.message and nested_result.message["content"]:
+                        response = nested_result.message["content"][0]["text"]
 
                         # Check if response is a JSON/dict string and extract clean text
                         if isinstance(response, str):
@@ -122,13 +134,23 @@ class ResultConverter:
         for node_id, node_result in graph_result.results.items():
             # Skip non-context nodes
             if self._is_context_node(node_id):
-                agent_state = node_result.result.results[node_id].result.state
+                # Check if result is MultiAgentResult
+                if not isinstance(node_result.result, MultiAgentResult):
+                    continue
+
+                if node_id not in node_result.result.results:
+                    continue
+
+                nested_result = node_result.result.results[node_id].result
+                if not isinstance(nested_result, AgentResult):
+                    continue
+
+                agent_state = nested_result.state
 
                 # Try to get clean response from message content first, fallback to state
                 try:
-                    agent_result = node_result.result.results[node_id].result
-                    if agent_result.message and agent_result.message["content"]:
-                        response = agent_result.message["content"][0]["text"]
+                    if nested_result.message and nested_result.message["content"]:
+                        response = nested_result.message["content"][0]["text"]
 
                         # Check if response is a JSON/dict string and extract clean text
                         if isinstance(response, str):
@@ -164,13 +186,23 @@ class ResultConverter:
         for node_id, node_result in graph_result.results.items():
             # Skip non-analysis nodes
             if self._is_analysis_node(node_id):
-                agent_state = node_result.result.results[node_id].result.state
+                # Check if result is MultiAgentResult
+                if not isinstance(node_result.result, MultiAgentResult):
+                    continue
+
+                if node_id not in node_result.result.results:
+                    continue
+
+                nested_result = node_result.result.results[node_id].result
+                if not isinstance(nested_result, AgentResult):
+                    continue
+
+                agent_state = nested_result.state
 
                 # Try to get clean response from message content first, fallback to state
                 try:
-                    agent_result = node_result.result.results[node_id].result
-                    if agent_result.message and agent_result.message["content"]:
-                        response = agent_result.message["content"][0]["text"]
+                    if nested_result.message and nested_result.message["content"]:
+                        response = nested_result.message["content"][0]["text"]
 
                         # Check if response is a JSON/dict string and extract clean text
                         if isinstance(response, str):
@@ -203,7 +235,18 @@ class ResultConverter:
 
         for node_id, node_result in graph_result.results.items():
             if self._is_analysis_node(node_id):
-                agent_state = node_result.result.results[node_id].result.state
+                # Check if result is MultiAgentResult
+                if not isinstance(node_result.result, MultiAgentResult):
+                    continue
+
+                if node_id not in node_result.result.results:
+                    continue
+
+                nested_result = node_result.result.results[node_id].result
+                if not isinstance(nested_result, AgentResult):
+                    continue
+
+                agent_state = nested_result.state
                 error = agent_state.get("error")
                 if error:
                     errors.append(f"{node_id}: {error}")
@@ -225,12 +268,19 @@ class ResultConverter:
         # First try to get compiled content from document processor
         doc_processor_result = graph_result.results.get("document_processor")
         if doc_processor_result:
-            doc_state = doc_processor_result.result.results[
-                "document_processor"
-            ].result.state
-            doc_processor_data = doc_state.get("document_processor_result")
-            if doc_processor_data and hasattr(doc_processor_data, "compiled_content"):
-                return doc_processor_data.compiled_content
+            # Check if result is MultiAgentResult
+            if isinstance(doc_processor_result.result, MultiAgentResult):
+                if "document_processor" in doc_processor_result.result.results:
+                    nested_result = doc_processor_result.result.results[
+                        "document_processor"
+                    ].result
+                    if isinstance(nested_result, AgentResult):
+                        doc_state = nested_result.state
+                        doc_processor_data = doc_state.get("document_processor_result")
+                        if doc_processor_data and hasattr(
+                            doc_processor_data, "compiled_content"
+                        ):
+                            return str(doc_processor_data.compiled_content)
 
         # Fallback to original content or empty string
         return original_content or ""
@@ -283,7 +333,7 @@ class ResultConverter:
             or "analysis" in node_id.lower()
         )
 
-    def _try_parse_json_response(self, response: str) -> str:
+    def _try_parse_json_response(self, response: str) -> str | None:
         """
         Try to parse a response string as JSON/dict and extract clean text.
         Returns the extracted text if successful, None if not a JSON structure.
@@ -317,7 +367,7 @@ class ResultConverter:
                         isinstance(nested_content[0], dict)
                         and "text" in nested_content[0]
                     ):
-                        return nested_content[0]["text"]
+                        return str(nested_content[0]["text"])
 
             # If structure doesn't match, return None (not a JSON response we care about)
             return None
@@ -425,9 +475,18 @@ class ResultConverter:
         if not doc_processor_result:
             return None
 
-        doc_state = doc_processor_result.result.results[
-            "document_processor"
-        ].result.state
+        # Check if result is MultiAgentResult
+        if not isinstance(doc_processor_result.result, MultiAgentResult):
+            return None
+
+        if "document_processor" not in doc_processor_result.result.results:
+            return None
+
+        nested_result = doc_processor_result.result.results["document_processor"].result
+        if not isinstance(nested_result, AgentResult):
+            return None
+
+        doc_state = nested_result.state
         doc_processor_data = doc_state.get("document_processor_result")
 
         if not doc_processor_data:

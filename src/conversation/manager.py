@@ -214,7 +214,7 @@ class ConversationManager:
         try:
             with open(manifest_path, encoding="utf-8") as f:
                 manifest = yaml.safe_load(f)
-            return manifest
+            return manifest or {}
         except Exception as e:
             print(f"⚠️  Warning: Failed to parse manifest {manifest_path}: {e}")
             return {}
@@ -513,7 +513,7 @@ class ConversationManager:
                             isinstance(nested_content[0], dict)
                             and "text" in nested_content[0]
                         ):
-                            return nested_content[0]["text"]
+                            return nested_content[0]["text"] or ""
             except:
                 # If parsing fails, return the original text
                 pass

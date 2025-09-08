@@ -16,7 +16,7 @@ from ..conversation.manager import ConversationManager
 
 @click.group()
 @click.version_option(version="0.1.0")
-def cli():
+def cli() -> None:
     """Review-Crew: Multi-agent content review system."""
     pass
 
@@ -63,7 +63,7 @@ def review(
     no_analysis: bool,
     context: str | None,
     include_context: bool,
-):
+) -> None:
     """Review content with multiple AI agents.
 
     CONTENT can be:
@@ -104,7 +104,7 @@ def review(
 
     # Check if content is a file path or directory (skip if from stdin)
     if not from_stdin:
-        content_path = Path(content)
+        content_path: Path = Path(content)
         if content_path.exists():
             if content_path.is_file():
                 # Single file - existing behavior
@@ -175,9 +175,9 @@ def review(
 
     # Warn if using --agents with a directory that has a manifest
     if selected_agents and not from_stdin:
-        content_path = Path(content_text) if content_text else None
-        if content_path and content_path.exists() and content_path.is_dir():
-            manifest_path = content_path / "manifest.yaml"
+        input_path: Path | None = Path(content_text) if content_text else None
+        if input_path and input_path.exists() and input_path.is_dir():
+            manifest_path = input_path / "manifest.yaml"
             if manifest_path.exists():
                 click.echo(
                     "⚠️  Warning: --agents flag will be ignored because manifest.yaml found in directory"
@@ -225,7 +225,7 @@ def review(
 
 
 @cli.command()
-def agents():
+def agents() -> None:
     """List available review agents."""
     try:
         manager = ConversationManager()
@@ -256,7 +256,7 @@ def agents():
 @click.argument("content", type=str)
 @click.option("--agent", "-a", required=True, help="Specific agent to use")
 @click.option("--output", "-o", type=click.Path(), help="Save results to file")
-def single(content: str, agent: str, output: str | None):
+def single(content: str, agent: str, output: str | None) -> None:
     """Review content with a single agent.
 
     CONTENT can be either text content or a file path.
@@ -310,7 +310,7 @@ def single(content: str, agent: str, output: str | None):
 
 
 @cli.command()
-def status():
+def status() -> None:
     """Show Review-Crew status and configuration."""
     try:
         # Check persona loader

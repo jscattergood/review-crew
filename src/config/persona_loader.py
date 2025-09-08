@@ -35,6 +35,7 @@ class PersonaConfig:
     backstory: str
     prompt_template: str
     model_config: dict[str, Any]
+    tools_config: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -72,7 +73,9 @@ class PersonaLoader:
         if personas_dir:
             self.personas_dir = Path(personas_dir)
         elif os.getenv("REVIEW_CREW_PERSONAS_DIR"):
-            self.personas_dir = Path(os.getenv("REVIEW_CREW_PERSONAS_DIR"))
+            personas_env_dir = os.getenv("REVIEW_CREW_PERSONAS_DIR")
+            if personas_env_dir:
+                self.personas_dir = Path(personas_env_dir)
         else:
             # Default to examples for testing - production should use .env file
             self.personas_dir = self.project_root / "examples" / "personas"
@@ -498,7 +501,7 @@ class PersonaLoader:
         for category in categories:
             category_dir = self.personas_dir / "analyzers" / category
             if category_dir.exists():
-                personas.extend(self._load_personas_from_directory(category_dir))
+                personas.extend(self._load_personas_from_dir(category_dir))
             else:
                 print(f"⚠️  Analyzer category '{category}' not found at {category_dir}")
 
@@ -546,27 +549,28 @@ class PersonaLoader:
 
         This is a convenience method for first-time setup.
         """
-        if self.config_dir.exists():
-            print(f"Custom config directory already exists: {self.config_dir}")
+        config_dir = self.project_root / "config" / "personas"
+        examples_dir = self.project_root / "examples" / "personas"
+
+        if config_dir.exists():
+            print(f"Custom config directory already exists: {config_dir}")
             return
 
-        if not self.examples_dir.exists():
-            raise FileNotFoundError(
-                f"Examples directory not found: {self.examples_dir}"
-            )
+        if not examples_dir.exists():
+            raise FileNotFoundError(f"Examples directory not found: {examples_dir}")
 
         # Create config directory
-        self.config_dir.mkdir(parents=True, exist_ok=True)
+        config_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy example files
         import shutil
 
-        for example_file in self.examples_dir.glob("*.yaml"):
-            target_file = self.config_dir / example_file.name
+        for example_file in examples_dir.glob("*.yaml"):
+            target_file = config_dir / example_file.name
             shutil.copy2(example_file, target_file)
             print(f"Copied {example_file.name} to config/personas/")
 
-        print(f"Custom personas setup complete in {self.config_dir}")
+        print(f"Custom personas setup complete in {config_dir}")
         print("Edit these files to customize your review personas.")
 
 

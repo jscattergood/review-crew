@@ -6,6 +6,8 @@ to create specialized review agents.
 """
 
 from typing import Any
+from strands.multiagent.base import MultiAgentResult
+from strands.types.content import ContentBlock
 
 from ..config.persona_loader import PersonaConfig
 from .base_agent import BaseAgent
@@ -43,13 +45,38 @@ class ReviewAgent(BaseAgent):
         if content == "ERROR_NO_CONTENT":
             return "No essay content was provided for review. Please submit your essay text for evaluation."
 
-        # Format the prompt with the content
-        prompt = self.persona.prompt_template.format(content=content)
+        # Check if tools are enabled for this persona
+        tools_enabled = (
+            hasattr(self, "persona_tools_config")
+            and self.persona_tools_config
+            and self.persona_tools_config.get("enabled", False)
+        )
 
-        # Use the base agent's invoke_async method which handles logging
+        if tools_enabled:
+            # Enhanced review with objective analysis data
+            analysis = self.get_content_analysis(content)
+            analysis_text = self.format_analysis_for_prompt(analysis)
+
+            if analysis_text:
+                # Include analysis data in the prompt
+                enhanced_prompt = f"""
+{self.persona.prompt_template.format(content=content)}
+
+OBJECTIVE ANALYSIS DATA:
+{analysis_text}
+
+Use this objective data to inform your evaluation. The analysis provides precise measurements that enhance your expert assessment."""
+                return await self.invoke_async_legacy(
+                    enhanced_prompt, "enhanced_review"
+                )
+
+        # Standard review without tools
+        prompt = self.persona.prompt_template.format(content=content)
         return await self.invoke_async_legacy(prompt, "review")
 
-    async def invoke_async_graph(self, task, **kwargs):
+    async def invoke_async_graph(
+        self, task: str | list[ContentBlock], **kwargs: Any
+    ) -> MultiAgentResult:
         """Process task asynchronously for graph execution using specialized review logic.
 
         Args:
@@ -73,7 +100,7 @@ class ReviewAgent(BaseAgent):
             # Process using the specialized review method with timing
             start_time = time.time()
             response = await self.review(content)
-            execution_time = time.time() - start_time
+            execution_time = int(time.time() - start_time)
 
             # Clean up any raw JSON that might have been generated in the response
             if response.startswith("{'role':") or response.startswith('{"role":'):
@@ -126,7 +153,7 @@ class ReviewAgent(BaseAgent):
                 results={
                     self.name: NodeResult(
                         result=AgentResult(
-                            stop_reason="error",
+                            stop_reason="end_turn",
                             message=Message(
                                 role="assistant",
                                 content=[ContentBlock(text=f"Review failed: {str(e)}")],
@@ -142,6 +169,6 @@ class ReviewAgent(BaseAgent):
                         status=Status.FAILED,
                     )
                 },
-                execution_time=0.0,
+                execution_time=0,
                 execution_count=1,
             )

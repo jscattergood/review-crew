@@ -311,7 +311,7 @@ class DocumentValidator:
 
         # Simple repetition check - could be enhanced
         words = content.lower().split()
-        word_freq = {}
+        word_freq: dict[str, int] = {}
         for word in words:
             if len(word) > 4:  # Only check longer words
                 word_freq[word] = word_freq.get(word, 0) + 1

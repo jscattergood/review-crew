@@ -368,3 +368,65 @@ class TestBaseAgent:
         assert config["temperature"] == 0.8
         # Original persona config should still be present for non-overridden values
         assert config["max_tokens"] == 2000
+
+    @pytest.fixture
+    def mock_persona_with_tools(self):
+        """Create a mock persona config with tools enabled."""
+        persona = PersonaConfig(
+            name="Test Agent with Tools",
+            role="Test Role", 
+            goal="Test goal",
+            backstory="Test backstory",
+            prompt_template="Test prompt: {content}",
+            model_config={
+                "model_id": "qwen/qwen3-4b-thinking-2507",
+                "temperature": 0.3,
+                "max_tokens": 2000
+            },
+            tools_config={
+                "enabled": True,
+                "analysis_types": ["metrics", "constraints", "structure"]
+            }
+        )
+        return persona
+
+    @pytest.fixture
+    def agent_with_tools(self, mock_persona_with_tools):
+        """Create a BaseAgent with tools enabled."""
+        agent = BaseAgent(persona=mock_persona_with_tools, model_provider="lm_studio")
+        
+        # Mock the agent property
+        mock_agent = Mock()
+        mock_agent.invoke_async = AsyncMock(return_value="Test response")
+        agent._agent = mock_agent
+        
+        return agent
+
+    def test_init_with_tools_config(self, agent_with_tools):
+        """Test BaseAgent initialization with tools config."""
+        assert agent_with_tools.persona_tools_config is not None
+        assert agent_with_tools.persona_tools_config["enabled"] is True
+        assert "metrics" in agent_with_tools.persona_tools_config["analysis_types"]
+
+    def test_init_without_tools_config(self, agent_with_reasoning_model):
+        """Test BaseAgent initialization without tools config."""
+        assert agent_with_reasoning_model.persona_tools_config is None
+
+    def test_tools_registration_with_config(self, agent_with_tools):
+        """Test that tools are registered when tools_config is enabled."""
+        # Mock the tools import to avoid actual tool loading in tests
+        with patch.object(agent_with_tools, '_register_writing_tools') as mock_register:
+            # Re-initialize to trigger tools registration
+            agent_with_tools.__init__(agent_with_tools.persona, agent_with_tools.model_provider)
+            mock_register.assert_called_once()
+
+    def test_tools_not_registered_without_config(self, agent_with_reasoning_model):
+        """Test that tools are not registered when tools_config is disabled and enable_tools=False."""
+        with patch.object(agent_with_reasoning_model, '_register_writing_tools') as mock_register:
+            # Re-initialize with enable_tools=False to check tools registration
+            agent_with_reasoning_model.__init__(
+                agent_with_reasoning_model.persona, 
+                agent_with_reasoning_model.model_provider,
+                enable_tools=False
+            )
+            mock_register.assert_not_called()

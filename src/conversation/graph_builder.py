@@ -10,6 +10,7 @@ from typing import Any
 
 from strands.multiagent import GraphBuilder
 from strands.multiagent.base import MultiAgentResult
+from strands.multiagent.graph import Graph
 
 from ..agents.analysis_agent import AnalysisAgent
 from ..agents.context_agent import ContextAgent
@@ -109,7 +110,7 @@ class ReviewGraphBuilder:
         selected_reviewers: list[str] | None = None,
         selected_contextualizers: list[str] | None = None,
         selected_analyzers: list[str] | None = None,
-    ):
+    ) -> Graph:
         """Build a standard review graph with document processing, context, reviews, and analysis.
 
         This creates a graph where:
@@ -134,35 +135,39 @@ class ReviewGraphBuilder:
         builder.set_entry_point("document_processor")
 
         # 2. Filter and add context agents (run in parallel)
-        context_agents_to_use = self._filter_context_agents(selected_contextualizers)
+        context_agents_to_use: list[ContextAgent] = self._filter_context_agents(
+            selected_contextualizers
+        )
 
-        for agent in context_agents_to_use:
-            builder.add_node(agent, agent.name)
+        for context_agent in context_agents_to_use:
+            builder.add_node(context_agent, context_agent.name)
             # Context agents depend on document processor
-            builder.add_edge("document_processor", agent.name)
+            builder.add_edge("document_processor", context_agent.name)
 
         # 3. Filter and add review agents (run in parallel)
-        review_agents_to_use = self._filter_review_agents(selected_reviewers)
+        review_agents_to_use: list[ReviewAgent] = self._filter_review_agents(
+            selected_reviewers
+        )
 
-        for agent in review_agents_to_use:
-            builder.add_node(agent, agent.name)
+        for review_agent in review_agents_to_use:
+            builder.add_node(review_agent, review_agent.name)
             # Review agents depend on document processor
-            builder.add_edge("document_processor", agent.name)
+            builder.add_edge("document_processor", review_agent.name)
 
             # Review agents also depend on context agents (if any)
             for context_agent in context_agents_to_use:
-                builder.add_edge(context_agent.name, agent.name)
+                builder.add_edge(context_agent.name, review_agent.name)
 
         # 4. Add analysis agents (if enabled) - run in parallel
         if self.enable_analysis:
             analysis_agents_to_use = self._filter_analysis_agents(selected_analyzers)
 
-            for agent in analysis_agents_to_use:
-                builder.add_node(agent, agent.name)
+            for analysis_agent in analysis_agents_to_use:
+                builder.add_node(analysis_agent, analysis_agent.name)
 
                 # Analysis agents depend on all review agents
                 for review_agent in review_agents_to_use:
-                    builder.add_edge(review_agent.name, agent.name)
+                    builder.add_edge(review_agent.name, analysis_agent.name)
 
         print(
             f"🏗️  Built graph with {len(review_agents_to_use)} reviewers, {len(context_agents_to_use)} contextualizers, {len(analysis_agents_to_use) if self.enable_analysis else 0} analyzers"
@@ -174,7 +179,7 @@ class ReviewGraphBuilder:
         self,
         manifest_config: dict[str, Any],
         directory_path: Path | None = None,
-    ):
+    ) -> Graph:
         """Build a review graph based on manifest configuration.
 
         Args:
@@ -194,39 +199,43 @@ class ReviewGraphBuilder:
         review_config = manifest_config.get("review_configuration", {})
 
         # 2. Load agents based on manifest specification
-        selected_contextualizers = self._load_contextualizers_from_manifest(
+        selected_contextualizers: list[ContextAgent] = (
+            self._load_contextualizers_from_manifest(review_config)
+        )
+        selected_reviewers: list[ReviewAgent] = self._load_reviewers_from_manifest(
             review_config
         )
-        selected_reviewers = self._load_reviewers_from_manifest(review_config)
-        selected_analyzers = self._load_analyzers_from_manifest(review_config)
+        selected_analyzers: list[AnalysisAgent] = self._load_analyzers_from_manifest(
+            review_config
+        )
 
         # 3. Add context agents
-        for agent in selected_contextualizers:
-            builder.add_node(agent, agent.name)
-            builder.add_edge("document_processor", agent.name)
+        for context_agent in selected_contextualizers:
+            builder.add_node(context_agent, context_agent.name)
+            builder.add_edge("document_processor", context_agent.name)
 
         # 4. Add review agents with focus instructions if specified
-        focus_config = review_config.get("processed_focus", {})
+        focus_config: dict[str, Any] = review_config.get("processed_focus", {})
 
-        for agent in selected_reviewers:
+        for review_agent in selected_reviewers:
             # Apply focus instructions to reviewer if available
             if focus_config and focus_config.get("focus_instructions"):
-                agent = self._apply_focus_to_reviewer(agent, focus_config)
+                review_agent = self._apply_focus_to_reviewer(review_agent, focus_config)
 
-            builder.add_node(agent, agent.name)
-            builder.add_edge("document_processor", agent.name)
+            builder.add_node(review_agent, review_agent.name)
+            builder.add_edge("document_processor", review_agent.name)
 
             # Connect to context agents
             for context_agent in selected_contextualizers:
-                builder.add_edge(context_agent.name, agent.name)
+                builder.add_edge(context_agent.name, review_agent.name)
 
         # 5. Add analysis agents
-        for agent in selected_analyzers:
-            builder.add_node(agent, agent.name)
+        for analysis_agent in selected_analyzers:
+            builder.add_node(analysis_agent, analysis_agent.name)
 
             # Connect to all review agents
             for review_agent in selected_reviewers:
-                builder.add_edge(review_agent.name, agent.name)
+                builder.add_edge(review_agent.name, analysis_agent.name)
 
         print(
             f"🎯 Built manifest-driven graph with {len(selected_reviewers)} reviewers, {len(selected_contextualizers)} contextualizers, {len(selected_analyzers)} analyzers"
@@ -234,7 +243,7 @@ class ReviewGraphBuilder:
 
         return builder.build()
 
-    def build_simple_review_graph(self, content: str):
+    def build_simple_review_graph(self, content: str) -> Graph:
         """Build a simple graph for direct content review (no document processing).
 
         Args:
@@ -246,18 +255,20 @@ class ReviewGraphBuilder:
         builder = GraphBuilder()
 
         # Use all available review agents as parallel entry points
-        for agent in self.review_agents:
-            builder.add_node(agent, agent.name)
-            builder.set_entry_point(agent.name)  # Each reviewer is an entry point
+        for review_agent in self.review_agents:
+            builder.add_node(review_agent, review_agent.name)
+            builder.set_entry_point(
+                review_agent.name
+            )  # Each reviewer is an entry point
 
         # Add analysis if enabled
         if self.enable_analysis and self.analysis_agents:
-            for agent in self.analysis_agents:
-                builder.add_node(agent, agent.name)
+            for analysis_agent in self.analysis_agents:
+                builder.add_node(analysis_agent, analysis_agent.name)
 
                 # Connect to all reviewers
                 for review_agent in self.review_agents:
-                    builder.add_edge(review_agent.name, agent.name)
+                    builder.add_edge(review_agent.name, analysis_agent.name)
 
         print(
             f"🔧 Built simple graph with {len(self.review_agents)} reviewers, {len(self.analysis_agents) if self.enable_analysis else 0} analyzers"
@@ -519,7 +530,7 @@ class ReviewGraphBuilder:
     # Note: Conditional edges were planned but Strands GraphBuilder doesn't support
     # add_conditional_edge method. All edges are currently unconditional.
 
-    async def execute_graph(self, graph, input_data: Any) -> MultiAgentResult:
+    async def execute_graph(self, graph: Graph, input_data: Any) -> MultiAgentResult:
         """Execute a graph with input data.
 
         Args:
@@ -529,4 +540,5 @@ class ReviewGraphBuilder:
         Returns:
             MultiAgentResult with execution results
         """
-        return await graph.invoke_async(input_data)
+        result = await graph.invoke_async(input_data)
+        return result  # type: ignore[return-value]

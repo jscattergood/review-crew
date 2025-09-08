@@ -30,12 +30,12 @@ class ConversationResult:
     reviews: list[ReviewResult]
     timestamp: datetime
     summary: str | None = None
-    analysis_results: list[AnalysisResult] = None
-    context_results: list[ContextResult] = None
+    analysis_results: list[AnalysisResult] | None = None
+    context_results: list[ContextResult] | None = None
     original_content: str | None = None
-    analysis_errors: list[str] = None  # Track analysis failures separately
+    analysis_errors: list[str] | None = None  # Track analysis failures separately
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.analysis_results is None:
             self.analysis_results = []
         if self.context_results is None:

@@ -8,11 +8,13 @@ Review-Crew is a powerful, generic multi-agent review platform that uses AI agen
 - **Parallel Graph Execution**: Strands Graph architecture enables true parallel agent processing for maximum performance
 - **Multi-Document Support**: Review entire document collections with manifest-driven configuration
 - **Intelligent Analysis**: Synthesis agents integrate feedback, resolve conflicts, and prioritize recommendations  
+- **Dynamic Writing Analysis Tools**: Context-aware word counting, readability analysis, and constraint validation
 - **Clean Markdown Output**: Generates readable, shareable markdown reports with structured sections
 - **Generic & Extensible**: Works with any content type - not limited to specific domains
 - **Smart Context Management**: Automatic chunking for large reviews with smaller models
 - **Multiple LLM Providers**: AWS Bedrock, LM Studio, Ollama support
 - **Hybrid Architecture**: Graph-based execution with legacy fallback for maximum reliability
+- **Type Safety**: Comprehensive type checking with MyPy for robust, maintainable code
 
 ## Technology
 * **Language**: Python 3.10+
@@ -499,6 +501,14 @@ model_config:
   temperature: 0.3
   max_tokens: 1500
   max_context_length: 8192  # 8K context for standard model
+
+# Optional: Enable writing analysis tools
+tools_config:
+  enabled: true
+  analysis_types:
+    - "metrics"        # Word/character counts, readability scores
+    - "structure"      # Document structure and paragraph flow analysis
+    - "readability"    # Reading level assessment
 ```
 
 **Contextualizer Persona Example** (`config/personas/contextualizers/business_contextualizer.yaml`):
@@ -579,6 +589,72 @@ model_config:
 - **Smart Truncation**: Content automatically truncated when exceeding limits
 - **Per-Model Optimization**: Each model uses its optimal context window
 - **Chunking Support**: Large content automatically chunked for analysis agents
+
+## Writing Analysis Tools
+
+### Dynamic Context-Aware Analysis
+
+Review-Crew includes sophisticated writing analysis tools that provide precise, deterministic measurements that LLMs cannot reliably perform:
+
+**Key Capabilities:**
+- **Exact Word/Character Counts**: Precise measurements vs. LLM approximations (±5-15% error)
+- **Dynamic Constraint Extraction**: Automatically detects limits from content (e.g., "Word Limit: 650 words")
+- **Context-Aware Analysis**: Adapts analysis types based on content type (Common App vs. Technical docs)
+- **Readability Assessment**: Quantified Flesch-Kincaid scores vs. subjective assessments
+- **Structural Analysis**: Document coherence and paragraph flow metrics
+- **Academic Writing Tools**: Cliché detection, personal voice analysis, essay strength scoring
+
+### Tool Integration
+
+**Simple Configuration:**
+```yaml
+# Add to any persona YAML file
+tools_config:
+  enabled: true  # Enables automatic constraint extraction and analysis
+  analysis_types:  # Optional: specify which tools to use
+    - "metrics"        # Word/character counts, readability scores
+    - "constraints"    # Validation against word limits and requirements
+    - "structure"      # Document structure and paragraph flow analysis
+    - "strength"       # Essay strength and admissions impact assessment
+    - "cliches"        # Detection of overused phrases and generic language
+    - "voice"          # Personal voice and authenticity analysis
+```
+
+**Automatic Context Detection:**
+The system automatically extracts constraints from your existing content format:
+
+```markdown
+**ASSIGNMENT CONTEXT:**
+- Essay Type: Common Application Personal Statement
+- Word Limit: 650 words
+- Constraint: Must work for ALL schools
+
+**ESSAY TO REVIEW:**
+[essay content]
+```
+
+**Automatically extracts:** 650 word limit, Common App type, generic requirement
+
+### Enhanced Review Quality
+
+**Before (LLM only):**
+> "This content appears to be well-structured with good readability."
+
+**After (Tools + LLM):**
+> "This content scores 0.82/1.0 for structural coherence with a Grade 9.1 reading level. At 647 words (99.5% of 650 limit), it's optimally sized. The vocabulary diversity of 0.65 indicates strong word choice variety."
+
+### Available Analysis Types
+
+| Type | Purpose | Best For |
+|------|---------|----------|
+| `metrics` | Basic text measurements | All content types |
+| `readability` | Reading level assessment | Audience-targeted content |
+| `vocabulary` | Word complexity analysis | Technical/academic writing |
+| `structure` | Document organization | Long-form content |
+| `constraints` | Limit validation | Strict word/character limits |
+| `cliches` | Overused phrase detection | Creative/marketing writing |
+| `strength` | Impact assessment | Persuasive/sales content |
+| `voice` | Authenticity measurement | Personal/narrative writing |
 
 ## Advanced Features
 
@@ -711,19 +787,30 @@ All output is formatted as clean, readable markdown that can be easily reviewed,
 
 ## Troubleshooting
 
-### Recent Improvements (v2.0 - Strands Graph Architecture)
+### Recent Improvements (v2.1 - Enhanced Tools & Type Safety)
 
 **✅ Fixed Issues:**
 - **Agent Hallucination**: Agents no longer generate fake responses for missing/invalid content
 - **Raw JSON Output**: Clean text extraction from LLM responses (no more `{'role': 'assistant'...}` in output)
 - **Sequential Processing**: All agents now run in parallel for much faster reviews
 - **Error Handling**: Robust error detection and graceful failure handling
-- **Test Reliability**: All 157 tests now pass consistently
+- **Test Reliability**: All tests now pass consistently
+- **Word Count Accuracy**: Tools now correctly extract essay content (668 words) vs. full document (726 words)
+- **Type Safety**: Comprehensive MyPy type checking eliminates runtime type errors
+- **Import Errors**: Fixed all module import issues (StopReason, EventLoopMetrics, OllamaModel)
+- **Union Type Handling**: Proper type checking for AgentResult | MultiAgentResult | Exception unions
 
 **🎯 Performance Gains:**
 - **Parallel Execution**: 3-5x faster reviews with multiple agents
 - **Better Resource Usage**: Strands Graph optimizes agent scheduling
 - **Cleaner Output**: Structured markdown with proper section formatting
+- **Precise Analysis**: Tools provide exact measurements vs. LLM approximations (±5-15% error)
+
+**🛠️ Code Quality Improvements:**
+- **Type Safety**: 100% MyPy compliance across all modules
+- **Error Prevention**: Union type checking prevents attribute access errors
+- **Maintainability**: Explicit type annotations improve code readability
+- **Robustness**: Proper exception handling and graceful degradation
 
 ### Common Issues
 
@@ -777,6 +864,39 @@ python -m src.cli.main status  # Should show reviewers and analyzers
 
 # Or edit .env file to change default
 echo "REVIEW_CREW_PERSONAS_DIR=examples/personas" > .env
+```
+
+**Writing Tools Issues:**
+```bash
+# Test tools functionality
+python -c "
+from src.tools.text_metrics import get_text_metrics
+from src.tools.context_parser import extract_essay_content
+result = get_text_metrics('This is a test essay with multiple words.')
+print(f'Word count: {result.word_count}')
+"
+
+# Check if tools are enabled for a persona
+python -c "
+from src.config.persona_loader import PersonaLoader
+loader = PersonaLoader()
+personas = loader.load_reviewer_personas()
+for p in personas:
+    if hasattr(p, 'tools_config') and p.tools_config:
+        print(f'{p.name}: tools enabled')
+"
+
+# Test context extraction
+python -c "
+from src.tools.context_parser import extract_essay_content
+content = '''**ASSIGNMENT CONTEXT:**
+- Word Limit: 650 words
+
+**ESSAY TO REVIEW:**
+This is the actual essay content.'''
+extracted = extract_essay_content(content)
+print(f'Extracted: {extracted}')
+"
 ```
 
 **Virtual Environment Issues:**

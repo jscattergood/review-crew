@@ -1,44 +1,17 @@
 """Agent implementations for Review-Crew."""
 
-# Import core data structures that don't require external dependencies
+from .analysis_agent import AnalysisAgent, AnalysisResult
+from .base_agent import BaseAgent
+from .context_agent import ContextAgent
 from .data_models import ConversationResult, ReviewResult
+from .review_agent import ReviewAgent
 
-# Import analysis components
-try:
-    from .analysis_agent import AnalysisAgent, AnalysisResult
-
-    _analysis_available = True
-except ImportError:
-    _analysis_available = False
-
-# Import main components that may require external dependencies
-try:
-    from .base_agent import BaseAgent
-    from .context_agent import ContextAgent
-    from .conversation_manager import ConversationManager
-    from .review_agent import ReviewAgent
-
-    _main_components_available = True
-except ImportError as e:
-    _main_components_available = False
-    _import_error = e
-
-# Define what's available for import
-__all__ = ["ReviewResult", "ConversationResult"]
-
-if _analysis_available:
-    __all__.extend(["AnalysisAgent", "AnalysisResult"])
-
-if _main_components_available:
-    __all__.extend(["BaseAgent", "ReviewAgent", "ContextAgent", "ConversationManager"])
-else:
-    # Provide helpful error message for missing dependencies
-    def _missing_dependency_error():
-        raise ImportError(
-            f"Main components not available due to missing dependencies: {_import_error}"
-        )
-
-    BaseAgent = _missing_dependency_error
-    ReviewAgent = _missing_dependency_error
-    ContextAgent = _missing_dependency_error
-    ConversationManager = _missing_dependency_error
+__all__ = [
+    "AnalysisAgent",
+    "AnalysisResult",
+    "BaseAgent",
+    "ContextAgent",
+    "ConversationResult",
+    "ReviewAgent",
+    "ReviewResult",
+]

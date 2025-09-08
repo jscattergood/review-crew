@@ -8,9 +8,11 @@ All specific agent types (ReviewAgent, AnalysisAgent, ContextAgent) inherit from
 import json
 import logging
 import os
-from typing import Any
+import re
+from typing import Any, Callable
 
 from strands import Agent
+from strands.models import Model
 from strands.agent.agent_result import AgentResult
 from strands.multiagent.base import MultiAgentBase, MultiAgentResult, NodeResult, Status
 from strands.telemetry.metrics import EventLoopMetrics
@@ -42,6 +44,7 @@ class BaseAgent(MultiAgentBase):
         persona: PersonaConfig,
         model_provider: str | None = None,
         model_config_override: dict[str, Any] | None = None,
+        enable_tools: bool = True,
     ):
         """Initialize a base agent with a persona configuration.
 
@@ -49,20 +52,36 @@ class BaseAgent(MultiAgentBase):
             persona: PersonaConfig object with agent settings
             model_provider: Optional model provider ('bedrock', 'lm_studio', 'ollama', etc.)
             model_config_override: Optional model configuration override
+            enable_tools: Whether to enable writing analysis tools
         """
         super().__init__()
         self.persona = persona
         self.model_provider = model_provider or "bedrock"  # Default to bedrock
         self.model_config_override = model_config_override or {}
         self.name = persona.name.lower().replace(" ", "_")
+        self.enable_tools = enable_tools
 
         # Setup logging
         self._setup_agent_logging()
 
         # Lazy-loaded attributes - only created when first accessed
-        self._agent = None
-        self._model = None
-        self._system_prompt = None
+        self._agent: Agent | None = None
+        self._model: Model | None = None
+        self._system_prompt: str | None = None
+        self.writing_tools: dict[str, Callable[..., Any]] = {}
+
+        # Tool integration - check persona tools_config first, then enable_tools parameter
+        should_enable_tools = False
+        self.persona_tools_config = None
+
+        if hasattr(persona, "tools_config") and persona.tools_config:
+            should_enable_tools = persona.tools_config.get("enabled", False)
+            self.persona_tools_config = persona.tools_config
+        elif self.enable_tools:
+            should_enable_tools = True
+
+        if should_enable_tools:
+            self._register_writing_tools()
 
     @property
     def agent(self) -> Agent:
@@ -82,7 +101,7 @@ class BaseAgent(MultiAgentBase):
 
         return self._agent
 
-    def _get_or_create_model(self):
+    def _get_or_create_model(self) -> Model | None:
         """Lazy-loaded model creation."""
         if self._model is None:
             self._model = self._create_model()
@@ -94,7 +113,7 @@ class BaseAgent(MultiAgentBase):
             self._system_prompt = self._build_system_prompt()
         return self._system_prompt
 
-    def _setup_agent_logging(self):
+    def _setup_agent_logging(self) -> None:
         """Setup dedicated logging for this agent."""
         # Create logs directory if it doesn't exist
         log_dir = "logs"
@@ -123,7 +142,7 @@ class BaseAgent(MultiAgentBase):
             # Add handler to logger
             self.logger.addHandler(file_handler)
 
-    def _log_prompt(self, prompt: str, prompt_type: str = "review"):
+    def _log_prompt(self, prompt: str, prompt_type: str = "review") -> None:
         """Log the prompt to the dedicated agent log.
 
         Args:
@@ -176,7 +195,7 @@ Background: {self.persona.backstory}
 Always provide constructive, specific feedback with actionable recommendations.
 Be professional but thorough in your analysis."""
 
-    def _create_model(self):
+    def _create_model(self) -> Model | None:
         """Create the appropriate model based on the provider."""
         model_config = self._get_model_config()
 
@@ -190,7 +209,7 @@ Be professional but thorough in your analysis."""
             # Default to bedrock
             return self._create_bedrock_model(model_config)
 
-    def _create_lm_studio_model(self, config: dict[str, Any]):
+    def _create_lm_studio_model(self, config: dict[str, Any]) -> Model | None:
         """Create a model for LM Studio (OpenAI-compatible API)."""
         try:
             from strands.models.openai import OpenAIModel
@@ -232,15 +251,17 @@ Be professional but thorough in your analysis."""
             print("💡 Make sure LM Studio is running at the specified URL.")
             return None
 
-    def _create_ollama_model(self, config: dict[str, Any]):
+    def _create_ollama_model(self, config: dict[str, Any]) -> Model | None:
         """Create an Ollama model for local inference."""
         try:
             # Check if Ollama model is available
-            from strands.models import OllamaModel
+            from strands.models.ollama import OllamaModel
 
             ollama_config = {
-                "model_id": config.get("model_id", "llama2"),  # Default Ollama model
-                "base_url": config.get("base_url", "http://localhost:11434"),
+                "model_id": config.get("model_id", "llama3"),  # Default Ollama model
+                "host": config.get(
+                    "base_url", "http://localhost:11434"
+                ),  # Ollama uses 'host' not 'base_url'
             }
 
             # Add temperature and max_tokens if available
@@ -250,17 +271,20 @@ Be professional but thorough in your analysis."""
                 ollama_config["max_tokens"] = config["max_tokens"]
 
             print(
-                f"✅ Creating Ollama model: {ollama_config['model_id']} at {ollama_config['base_url']}"
+                f"✅ Creating Ollama model: {ollama_config['model_id']} at {ollama_config['host']}"
             )
             return OllamaModel(**ollama_config)
 
         except ImportError:
             print(
-                "⚠️  Ollama model not available. Install Ollama or use a different provider."
+                "⚠️  Ollama model not available. Install with: pip install 'strands-agents[ollama]'"
             )
             return None
+        except Exception as e:
+            print(f"⚠️  Ollama model creation failed: {e}")
+            return None
 
-    def _create_bedrock_model(self, config: dict[str, Any]):
+    def _create_bedrock_model(self, config: dict[str, Any]) -> Model | None:
         """Create a Bedrock model for AWS inference."""
         try:
             from strands.models import BedrockModel
@@ -322,7 +346,7 @@ Be professional but thorough in your analysis."""
             and isinstance(self.persona.model_config, dict)
             and "max_context_length" in self.persona.model_config
         ):
-            return self.persona.model_config["max_context_length"]
+            return self.persona.model_config["max_context_length"] or 0
 
         # Get the actual model_id being used
         model_config = self._get_model_config()
@@ -472,7 +496,7 @@ Be professional but thorough in your analysis."""
 
         return content_tokens > available_tokens
 
-    def _extract_response(self, result) -> str:
+    def _extract_response(self, result: AgentResult) -> str:
         """Extract the response content from the agent result.
 
         Args:
@@ -516,7 +540,9 @@ Be professional but thorough in your analysis."""
             "max_tokens": max_tokens,
         }
 
-    def __call__(self, task: str | list[ContentBlock], **kwargs) -> MultiAgentResult:
+    def __call__(
+        self, task: str | list[ContentBlock], **kwargs: Any
+    ) -> MultiAgentResult:
         """Process task synchronously by running async method (required by MultiAgentBase).
 
         Args:
@@ -531,7 +557,7 @@ Be professional but thorough in your analysis."""
         return asyncio.run(self.invoke_async(task, **kwargs))
 
     async def invoke_async(
-        self, task: str | list[ContentBlock], **kwargs
+        self, task: str | list[ContentBlock], **kwargs: Any
     ) -> MultiAgentResult:
         """Process task asynchronously (required by MultiAgentBase).
 
@@ -548,7 +574,7 @@ Be professional but thorough in your analysis."""
         return await self.invoke_async_graph(task, **kwargs)
 
     async def invoke_async_graph(
-        self, task: str | list[ContentBlock], **kwargs
+        self, task: str | list[ContentBlock], **kwargs: Any
     ) -> MultiAgentResult:
         """Process task asynchronously for graph execution (required by MultiAgentBase).
 
@@ -571,7 +597,7 @@ Be professional but thorough in your analysis."""
             # Process using the internal agent with timing
             start_time = time.time()
             response = await self.invoke_async_legacy(content)
-            execution_time = time.time() - start_time
+            execution_time = int(time.time() - start_time)
 
             # Create agent result (execution_time goes on MultiAgentResult, not AgentResult)
             metrics = EventLoopMetrics()
@@ -616,7 +642,7 @@ Be professional but thorough in your analysis."""
                 results={
                     self.name: NodeResult(result=agent_result, status=Status.FAILED)
                 },
-                execution_time=0.0,
+                execution_time=0,
                 execution_count=1,
             )
 
@@ -638,12 +664,24 @@ Be professional but thorough in your analysis."""
 
             for node_name, node_result in task.results.items():
                 if node_result.status.value == "completed":
-                    agent_result = node_result.result
-                    message = agent_result.message
+                    # node_result.result can be AgentResult, MultiAgentResult, or Exception
+                    message: Message | None = None
+                    if isinstance(node_result.result, AgentResult):
+                        agent_result: AgentResult = node_result.result
+                        message = agent_result.message
+                    elif isinstance(node_result.result, MultiAgentResult):
+                        # For MultiAgentResult, we need to extract AgentResults from nested results
+                        agent_results = node_result.get_agent_results()
+                        if not agent_results:
+                            continue
+                        message = agent_results[-1].message  # Get the last agent result
+                    else:
+                        continue  # Skip exceptions or other types
+
                     if isinstance(message, dict) and "content" in message:
                         content_blocks = message["content"]
                         if content_blocks and len(content_blocks) > 0:
-                            content_text = content_blocks[0].get("text", "")
+                            content_text: str = content_blocks[0].get("text", "")
 
                             # Check if content_text is actually a JSON string that needs parsing
                             if content_text.startswith(
@@ -745,3 +783,327 @@ Be professional but thorough in your analysis."""
             return True
 
         return False
+
+    def _register_writing_tools(self) -> None:
+        """Register writing analysis tools with the agent."""
+        try:
+            from ..tools.text_metrics import (
+                get_text_metrics,
+                validate_constraints,
+                analyze_readability,
+                analyze_vocabulary,
+            )
+            from ..tools.structure_analysis import (
+                analyze_document_structure,
+                detect_essay_components,
+                analyze_paragraph_flow,
+            )
+            from ..tools.academic_tools import (
+                analyze_essay_strength,
+                detect_cliches,
+                analyze_personal_voice,
+            )
+
+            # Store tools for use in enhanced review methods
+            self.writing_tools = {
+                "get_text_metrics": get_text_metrics,
+                "validate_constraints": validate_constraints,
+                "analyze_readability": analyze_readability,
+                "analyze_vocabulary": analyze_vocabulary,
+                "analyze_document_structure": analyze_document_structure,
+                "detect_essay_components": detect_essay_components,
+                "analyze_paragraph_flow": analyze_paragraph_flow,
+                "analyze_essay_strength": analyze_essay_strength,
+                "detect_cliches": detect_cliches,
+                "analyze_personal_voice": analyze_personal_voice,
+            }
+
+        except ImportError as e:
+            print(f"⚠️  Warning: Could not load writing tools: {e}")
+            self.writing_tools = {}
+
+    def get_content_analysis(
+        self, content: str, analysis_types: list[str] | None = None
+    ) -> dict[str, Any]:
+        """
+        Get comprehensive content analysis using writing tools with dynamic constraint extraction.
+
+        Provides objective metrics that enhance persona feedback accuracy:
+        - Precise word/character counts (vs. LLM approximations)
+        - Quantified readability scores (vs. subjective assessments)
+        - Structural analysis metrics (vs. vague feedback)
+        - Dynamic constraint extraction from content context
+
+        Args:
+            content: Text content to analyze (including assignment context)
+            analysis_types: List of analysis types to perform. If None, uses persona's tools_config
+                          or auto-detects based on content.
+                          Options: ['metrics', 'constraints', 'readability', 'vocabulary',
+                                   'structure', 'components', 'flow', 'strength', 'cliches', 'voice']
+
+        Returns:
+            Dictionary with analysis results from requested tools, including extracted constraints
+
+        Example:
+            >>> analysis = agent.get_content_analysis(essay_with_context)
+            >>> analysis['constraints'].word_limit  # Extracted from "Word Limit: 650 words"
+            650
+            >>> analysis['context_info'].essay_type  # Extracted from "Essay Type: Common App"
+            'Common Application Personal Statement'
+        """
+        if not self.enable_tools or not hasattr(self, "writing_tools"):
+            return {}
+
+        results = {}
+
+        try:
+            # Extract constraints and context from content
+            from ..tools.context_parser import (
+                extract_constraints_from_content,
+                get_analysis_types_for_content,
+            )
+
+            constraints = extract_constraints_from_content(content)
+            results["context_info"] = constraints
+
+            # Determine analysis types: persona config > parameter > auto-detect
+            if analysis_types is None:
+                if (
+                    self.persona_tools_config
+                    and "analysis_types" in self.persona_tools_config
+                ):
+                    analysis_types = self.persona_tools_config["analysis_types"]
+                else:
+                    analysis_types = get_analysis_types_for_content(constraints)
+
+            # Extract just the essay content (after "ESSAY TO REVIEW:" or similar)
+            from ..tools.context_parser import extract_essay_content
+
+            essay_content = extract_essay_content(content)
+
+            # Run analysis tools
+            if "metrics" in analysis_types and "get_text_metrics" in self.writing_tools:
+                results["metrics"] = self.writing_tools["get_text_metrics"](
+                    essay_content
+                )
+
+            if (
+                "constraints" in analysis_types
+                and "validate_constraints" in self.writing_tools
+            ):
+                # Use dynamically extracted constraints
+                results["constraints"] = self.writing_tools["validate_constraints"](
+                    essay_content,
+                    word_limit=constraints.word_limit,
+                    character_limit=constraints.character_limit,
+                    min_words=constraints.min_words,
+                    optimal_word_range=constraints.optimal_word_range,
+                )
+
+            if (
+                "readability" in analysis_types
+                and "analyze_readability" in self.writing_tools
+            ):
+                results["readability"] = self.writing_tools["analyze_readability"](
+                    essay_content
+                )
+
+            if (
+                "vocabulary" in analysis_types
+                and "analyze_vocabulary" in self.writing_tools
+            ):
+                results["vocabulary"] = self.writing_tools["analyze_vocabulary"](
+                    essay_content
+                )
+
+            if (
+                "structure" in analysis_types
+                and "analyze_document_structure" in self.writing_tools
+            ):
+                results["structure"] = self.writing_tools["analyze_document_structure"](
+                    essay_content
+                )
+
+            if (
+                "components" in analysis_types
+                and "detect_essay_components" in self.writing_tools
+            ):
+                results["components"] = self.writing_tools["detect_essay_components"](
+                    essay_content
+                )
+
+            if (
+                "flow" in analysis_types
+                and "analyze_paragraph_flow" in self.writing_tools
+            ):
+                results["flow"] = self.writing_tools["analyze_paragraph_flow"](
+                    essay_content
+                )
+
+            if (
+                "strength" in analysis_types
+                and "analyze_essay_strength" in self.writing_tools
+            ):
+                results["strength"] = self.writing_tools["analyze_essay_strength"](
+                    essay_content
+                )
+
+            if "cliches" in analysis_types and "detect_cliches" in self.writing_tools:
+                results["cliches"] = self.writing_tools["detect_cliches"](essay_content)
+
+            if (
+                "voice" in analysis_types
+                and "analyze_personal_voice" in self.writing_tools
+            ):
+                results["voice"] = self.writing_tools["analyze_personal_voice"](
+                    essay_content
+                )
+
+        except Exception as e:
+            print(f"⚠️  Warning: Error in content analysis: {e}")
+
+        return results
+
+    def _extract_essay_content(self, full_content: str) -> str:
+        """
+        Extract just the essay content from full content with context.
+
+        Looks for markers like "ESSAY TO REVIEW:", "Content:", etc. and returns
+        the actual essay text without the assignment context.
+
+        Args:
+            full_content: Full content including context and essay
+
+        Returns:
+            Just the essay content for analysis
+        """
+        # Common markers that indicate where essay content starts
+        markers = [
+            r"ESSAY TO REVIEW:\s*\n",
+            r"Content to review:\s*\n",
+            r"Content:\s*\n",
+            r"Essay:\s*\n",
+            r"Text:\s*\n",
+        ]
+
+        for marker in markers:
+            match = re.search(marker, full_content, re.IGNORECASE)
+            if match:
+                return full_content[match.end() :].strip()
+
+        # If no marker found, look for content after assignment context
+        # (assumes context ends with a line of dashes or double newline)
+        context_end_patterns = [
+            r"\n---+\s*\n",
+            r"\n\*\*ESSAY TO REVIEW:\*\*\s*\n",
+            r"\n\n[A-Z]",  # Double newline followed by capital letter (start of essay)
+        ]
+
+        for pattern in context_end_patterns:
+            match = re.search(pattern, full_content)
+            if match:
+                return full_content[
+                    match.end() - 1 :
+                ].strip()  # Keep the capital letter
+
+        # Fallback: return full content if no clear separation found
+        return full_content.strip()
+
+    def format_analysis_for_prompt(self, analysis_results: dict[str, Any]) -> str:
+        """
+        Format analysis results for inclusion in persona prompts.
+
+        Converts tool analysis into structured text that personas can use
+        to provide more accurate, data-driven feedback.
+
+        Args:
+            analysis_results: Results from get_content_analysis()
+
+        Returns:
+            Formatted string with key metrics for persona use
+        """
+        if not analysis_results:
+            return ""
+
+        formatted_parts = []
+
+        # Context information (extracted constraints)
+        if "context_info" in analysis_results:
+            context = analysis_results["context_info"]
+            context_parts = []
+
+            if context.essay_type:
+                context_parts.append(f"Type: {context.essay_type}")
+            if context.word_limit:
+                context_parts.append(f"Word limit: {context.word_limit}")
+            if context.school_name:
+                context_parts.append(f"School: {context.school_name}")
+            if context.special_requirements:
+                context_parts.append(
+                    f"Requirements: {'; '.join(context.special_requirements[:2])}"
+                )  # Show first 2
+
+            if context_parts:
+                formatted_parts.append(f"""
+ASSIGNMENT CONTEXT:
+- {chr(10).join(f"- {part}" for part in context_parts)}""")
+
+        # Text metrics
+        if "metrics" in analysis_results:
+            metrics = analysis_results["metrics"]
+            formatted_parts.append(f"""
+TEXT METRICS:
+- Word count: {metrics.word_count}
+- Character count: {metrics.character_count}
+- Sentences: {metrics.sentence_count}
+- Paragraphs: {metrics.paragraph_count}
+- Avg words/sentence: {metrics.average_words_per_sentence:.1f}
+- Vocabulary diversity: {metrics.vocabulary_diversity:.2f}
+- Reading level: {metrics.flesch_kincaid_grade:.1f}""")
+
+        # Constraint validation
+        if "constraints" in analysis_results:
+            constraints = analysis_results["constraints"]
+            status = (
+                "✓ Within limit" if constraints.within_word_limit else "⚠️ Over limit"
+            )
+            formatted_parts.append(f"""
+WORD LIMIT ANALYSIS:
+- Status: {status}
+- Usage: {constraints.word_usage_percentage:.1f}% of limit
+- Words over/under: {constraints.words_over_under}""")
+
+        # Structure analysis
+        if "structure" in analysis_results:
+            structure = analysis_results["structure"]
+            formatted_parts.append(f"""
+STRUCTURE ANALYSIS:
+- Paragraphs: {structure.total_paragraphs}
+- Has introduction: {structure.has_introduction}
+- Body paragraphs: {structure.body_paragraph_count}
+- Has conclusion: {structure.has_conclusion}
+- Paragraph balance: {structure.structural_coherence_score:.2f}/1.0
+- Transition density: {structure.transition_density:.2f}""")
+
+        # Cliché detection
+        if "cliches" in analysis_results:
+            cliches = analysis_results["cliches"]
+            risk_emoji = {"low": "✓", "medium": "⚠️", "high": "❌"}
+            formatted_parts.append(f"""
+CLICHÉ ANALYSIS:
+- Total clichés found: {cliches.total_cliches_found}
+- Cliché density: {cliches.cliche_density:.2f}%
+- Risk level: {risk_emoji.get(cliches.admissions_risk_level, "?")} {cliches.admissions_risk_level}""")
+
+        # Essay strength
+        if "strength" in analysis_results:
+            strength = analysis_results["strength"]
+            formatted_parts.append(f"""
+ESSAY STRENGTH:
+- Admissions strength: {strength.admissions_strength_score:.2f}/1.0
+- Personal voice: {strength.personal_voice_strength:.2f}/1.0
+- Authenticity: {strength.authenticity_score:.2f}/1.0
+- Memorable moments: {strength.memorable_moments_count}
+- Specific examples: {strength.specific_examples_count}""")
+
+        return "\n".join(formatted_parts)
