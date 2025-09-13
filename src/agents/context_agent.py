@@ -9,9 +9,9 @@ The agent is completely abstract and domain-agnostic.
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+
 from strands.multiagent.base import MultiAgentResult
 from strands.types.content import ContentBlock
-
 
 from ..config.persona_loader import PersonaConfig
 from .base_agent import BaseAgent

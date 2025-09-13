@@ -9,11 +9,12 @@ import json
 import logging
 import os
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from strands import Agent
-from strands.models import Model
 from strands.agent.agent_result import AgentResult
+from strands.models import Model
 from strands.multiagent.base import MultiAgentBase, MultiAgentResult, NodeResult, Status
 from strands.telemetry.metrics import EventLoopMetrics
 from strands.types.content import ContentBlock, Message
@@ -787,21 +788,21 @@ Be professional but thorough in your analysis."""
     def _register_writing_tools(self) -> None:
         """Register writing analysis tools with the agent."""
         try:
-            from ..tools.text_metrics import (
-                get_text_metrics,
-                validate_constraints,
-                analyze_readability,
-                analyze_vocabulary,
+            from ..tools.academic_tools import (
+                analyze_essay_strength,
+                analyze_personal_voice,
+                detect_cliches,
             )
             from ..tools.structure_analysis import (
                 analyze_document_structure,
-                detect_essay_components,
                 analyze_paragraph_flow,
+                detect_essay_components,
             )
-            from ..tools.academic_tools import (
-                analyze_essay_strength,
-                detect_cliches,
-                analyze_personal_voice,
+            from ..tools.text_metrics import (
+                analyze_readability,
+                analyze_vocabulary,
+                get_text_metrics,
+                validate_constraints,
             )
 
             # Store tools for use in enhanced review methods

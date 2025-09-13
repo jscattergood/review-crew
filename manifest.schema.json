@@ -1,0 +1,347 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/review-crew/manifest-schema",
+  "title": "Review Crew Manifest Schema",
+  "description": "Schema for review-crew manifest.yaml files that define document processing and review configurations",
+  "type": "object",
+  "required": ["review_configuration"],
+  "properties": {
+    "review_configuration": {
+      "type": "object",
+      "required": ["name", "description", "version"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name for this review configuration",
+          "examples": ["Technical Code Review", "Content Strategy Review", "Business Proposal Review"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of what this review configuration does",
+          "examples": ["Comprehensive technical code review with security analysis", "Content strategy and UX review for marketing materials"]
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+(\\.\\d+)?$",
+          "description": "Semantic version of this configuration",
+          "examples": ["1.0", "1.2.3"]
+        },
+        "contextualizers": {
+          "type": "array",
+          "description": "List of contextualizer agent names to use",
+          "items": {
+            "type": "string",
+            "examples": ["Technical Context Formatter", "Business Context Formatter"]
+          }
+        },
+        "reviewer_categories": {
+          "type": "array",
+          "description": "Optional categories to organize reviewers",
+          "items": {
+            "type": "string",
+            "examples": ["technical", "content", "business", "academic"]
+          }
+        },
+        "reviewers": {
+          "type": "array",
+          "description": "List of reviewer agent names to use for analysis",
+          "items": {
+            "type": "string",
+            "examples": ["Content Reviewer", "Technical Reviewer", "Security Reviewer", "UX Reviewer", "Multi Document Reviewer"]
+          },
+          "minItems": 1
+        },
+        "analyzers": {
+          "type": "array",
+          "description": "List of analyzer agent names to use for synthesis",
+          "items": {
+            "type": "string",
+            "examples": ["Application Coherence Analyzer", "Quality Metrics Analyzer", "Competitive Analysis Specialist"]
+          }
+        },
+        "documents": {
+          "type": "object",
+          "description": "Document configuration specifying which files to process",
+          "properties": {
+            "primary": {
+              "type": "string",
+              "description": "Path to the primary document for review (relative to manifest directory)",
+              "examples": ["./proposal.md", "../technical-spec.md", "./content-draft.md"]
+            },
+            "supporting": {
+              "type": "array",
+              "description": "Array of paths to supporting documents",
+              "items": {
+                "type": "string",
+                "description": "Path to supporting document (relative to manifest directory)",
+                "examples": ["./requirements.md", "../api-docs.md", "./user-research.md"]
+              }
+            },
+            "context_files": {
+              "type": "array",
+              "description": "Array of context file configurations for background information",
+              "items": {
+                "type": "object",
+                "required": ["path"],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to context file (relative to manifest directory)",
+                    "examples": ["../project-context.md", "./business-requirements.md"]
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "Type/category of this context file",
+                    "enum": ["applicant_profile", "general", "institutional", "prompt_context", "requirements", "institutional_context", "analysis_supplement"],
+                    "default": "general"
+                  },
+                  "weight": {
+                    "type": "string",
+                    "description": "Importance level of this context file",
+                    "enum": ["low", "medium", "high"],
+                    "default": "medium"
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "Optional description of this context file's purpose"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "relationships": {
+              "type": "array",
+              "description": "Array of document relationship definitions",
+              "items": {
+                "type": "object",
+                "required": ["source", "target", "type"],
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "description": "Path to source document in relationship",
+                    "examples": ["./proposal.md", "../technical-spec.md"]
+                  },
+                  "target": {
+                    "type": "string",
+                    "description": "Path to target document in relationship",
+                    "examples": ["./requirements.md", "../api-docs.md"]
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "Type of relationship between documents",
+                    "enum": ["evidence_support", "version_comparison", "relates_to", "contradicts", "supplements", "complements", "supports"],
+                    "examples": ["evidence_support", "relates_to", "supplements"]
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "Optional description of this relationship"
+                  },
+                  "weight": {
+                    "type": "string",
+                    "description": "Importance level of this relationship",
+                    "enum": ["low", "medium", "high"],
+                    "default": "medium"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "processing": {
+          "type": "object",
+          "description": "Processing configuration and limits",
+          "properties": {
+            "max_content_length": {
+              "type": "integer",
+              "description": "Maximum character count for compiled document content",
+              "minimum": 1000,
+              "maximum": 50000,
+              "default": 8000,
+              "examples": [8000, 12000, 15000]
+            },
+            "preserve_document_order": {
+              "type": "boolean",
+              "description": "Whether to preserve the order of documents during processing",
+              "default": true
+            },
+            "include_metadata": {
+              "type": "boolean",
+              "description": "Whether to include document metadata in processing",
+              "default": false
+            },
+            "chunking_strategy": {
+              "type": "string",
+              "description": "Strategy for chunking large documents",
+              "enum": ["document_aware", "sentence_aware", "paragraph_aware", "none"],
+              "default": "none"
+            }
+          },
+          "additionalProperties": false
+        },
+        "review_focus": {
+          "type": "object",
+          "description": "Optional review focus configuration (processed but may not affect all reviewers)",
+          "properties": {
+            "primary_concerns": {
+              "type": "array",
+              "description": "High-priority areas for reviewer focus",
+              "items": {
+                "type": "object",
+                "required": ["concern"],
+                "properties": {
+                  "concern": {
+                    "type": "string",
+                    "description": "The specific concern or focus area"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Detailed description of this concern"
+                  },
+                  "weight": {
+                    "type": "string",
+                    "enum": ["critical", "high", "medium"],
+                    "default": "high"
+                  }
+                }
+              }
+            },
+            "secondary_concerns": {
+              "type": "array",
+              "description": "Lower-priority areas for reviewer focus",
+              "items": {
+                "type": "object",
+                "required": ["concern"],
+                "properties": {
+                  "concern": {
+                    "type": "string",
+                    "description": "The specific concern or focus area"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Detailed description of this concern"
+                  },
+                  "weight": {
+                    "type": "string",
+                    "enum": ["medium", "low"],
+                    "default": "medium"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "output": {
+          "type": "object",
+          "description": "Output configuration (processed but may not affect all reviewers)",
+          "properties": {
+            "format": {
+              "type": "string",
+              "enum": ["standard", "detailed", "summary", "comprehensive"],
+              "default": "standard",
+              "description": "Output format preference"
+            },
+            "include_sections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Specific sections to include in output"
+            },
+            "exclude_sections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Specific sections to exclude from output"
+            },
+            "summary_length": {
+              "type": "string",
+              "enum": ["brief", "standard", "detailed"],
+              "default": "standard",
+              "description": "Preferred length of summary sections"
+            },
+            "include_scores": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether to include numerical scores in output"
+            },
+            "highlight_critical_issues": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether to prominently highlight critical issues"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "review_configuration": {
+        "name": "Technical Code Review",
+        "description": "Comprehensive technical review with security and performance analysis",
+        "version": "1.0",
+        "contextualizers": [
+          "Technical Context Formatter"
+        ],
+        "reviewers": [
+          "Technical Reviewer",
+          "Security Reviewer"
+        ],
+        "analyzers": [
+          "Quality Metrics Analyzer"
+        ],
+        "documents": {
+          "primary": "./code-changes.md",
+          "supporting": [
+            "./test-results.md"
+          ],
+          "context_files": [
+            {
+              "path": "../project-requirements.md",
+              "type": "requirements",
+              "weight": "high"
+            }
+          ],
+          "relationships": [
+            {
+              "source": "./code-changes.md",
+              "target": "./test-results.md",
+              "type": "evidence_support",
+              "note": "Test results validate code changes"
+            }
+          ]
+        },
+        "processing": {
+          "max_content_length": 12000
+        }
+      }
+    },
+    {
+      "review_configuration": {
+        "name": "Content Strategy Review",
+        "description": "Multi-document content review for marketing materials",
+        "version": "1.0",
+        "reviewers": [
+          "Content Reviewer",
+          "UX Reviewer"
+        ],
+        "analyzers": [
+          "Application Coherence Analyzer"
+        ],
+        "documents": {
+          "primary": "./content-draft.md",
+          "supporting": [
+            "./user-research.md",
+            "./brand-guidelines.md"
+          ]
+        }
+      }
+    }
+  ]
+}

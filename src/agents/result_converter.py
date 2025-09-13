@@ -9,7 +9,6 @@ from datetime import datetime
 from typing import Any
 
 from strands.agent.agent_result import AgentResult
-
 from strands.multiagent.base import MultiAgentResult, Status
 
 from .analysis_agent import AnalysisResult

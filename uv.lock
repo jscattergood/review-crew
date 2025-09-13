@@ -1197,6 +1197,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "jsonschema" },
     { name = "openai" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
@@ -1226,6 +1227,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.0.0" },
+    { name = "jsonschema", specifier = ">=4.25.1" },
     { name = "ollama", marker = "extra == 'ollama'", specifier = ">=0.1.0" },
     { name = "openai", specifier = ">=1.0.0" },
     { name = "openai", marker = "extra == 'lm-studio'", specifier = ">=1.0.0" },

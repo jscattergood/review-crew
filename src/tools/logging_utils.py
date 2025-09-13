@@ -7,7 +7,8 @@ Provides decorators and utilities to add consistent logging to tool functions.
 import functools
 import json
 import time
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from ..logging.manager import LoggingManager
 
@@ -74,7 +75,7 @@ def log_tool_execution(tool_name: str) -> Callable[[F], F]:
                         value = getattr(result, field)
                         if isinstance(value, str) and len(value) > 100:
                             result_summary[field] = f"{value[:100]}... (truncated)"
-                        elif isinstance(value, (list, dict)) and len(str(value)) > 200:
+                        elif isinstance(value, list | dict) and len(str(value)) > 200:
                             result_summary[field] = (
                                 f"{type(value).__name__} with {len(value)} items"
                             )
@@ -157,7 +158,7 @@ def _sanitize_for_logging(obj: Any, max_length: int = 200) -> Any:
         return {
             key: _sanitize_for_logging(value, max_length) for key, value in obj.items()
         }
-    elif isinstance(obj, (list, tuple)):
+    elif isinstance(obj, list | tuple):
         return [_sanitize_for_logging(item, max_length) for item in obj]
     else:
         return obj

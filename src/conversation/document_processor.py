@@ -478,7 +478,7 @@ class DocumentProcessorNode(MultiAgentBase):
         return "\n".join(compiled_parts)
 
     def _load_manifest(self, manifest_path: Path) -> dict[str, Any]:
-        """Load and parse manifest file.
+        """Load and parse manifest file with schema validation.
 
         Args:
             manifest_path: Path to manifest.yaml file
@@ -491,10 +491,53 @@ class DocumentProcessorNode(MultiAgentBase):
         try:
             with open(manifest_path, encoding="utf-8") as f:
                 manifest: dict[str, Any] = yaml.safe_load(f)
+
+            # Validate against schema if available
+            self._validate_manifest_schema(manifest, manifest_path)
+
             return manifest
         except Exception as e:
             print(f"⚠️  Warning: Failed to parse manifest {manifest_path}: {e}")
             return {}
+
+    def _validate_manifest_schema(
+        self, manifest: dict[str, Any], manifest_path: Path
+    ) -> None:
+        """Validate manifest against JSON schema if available.
+
+        Args:
+            manifest: Parsed manifest dictionary
+            manifest_path: Path to manifest file for error reporting
+        """
+        try:
+            import json
+
+            import jsonschema
+
+            # Look for schema file in project root
+            schema_path = manifest_path.parent.parent.parent / "manifest.schema.json"
+            if not schema_path.exists():
+                # Schema not found, skip validation
+                return
+
+            with open(schema_path) as f:
+                schema = json.load(f)
+
+            jsonschema.validate(manifest, schema)
+            print(f"✅ Manifest schema validation passed: {manifest_path.name}")
+
+        except ImportError:
+            # jsonschema not available, skip validation
+            return
+        except jsonschema.ValidationError as e:
+            print(f"❌ Manifest schema validation failed for {manifest_path.name}:")
+            print(f"   {e.message}")
+            if e.absolute_path:
+                print(f"   Path: {'.'.join(str(p) for p in e.absolute_path)}")
+            # Don't raise - allow processing to continue with warning
+        except Exception as e:
+            print(f"⚠️  Schema validation error for {manifest_path.name}: {e}")
+            # Don't raise - allow processing to continue
 
     def _process_advanced_manifest(
         self, manifest_config: dict[str, Any], directory_path: Path

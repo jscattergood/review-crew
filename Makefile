@@ -1,7 +1,7 @@
 # Review-Crew Makefile
 # Provides convenient commands for development, testing, and running the project
 
-.PHONY: help install setup test clean lint format check run-example personas persona-types validate
+.PHONY: help install setup test clean lint format check run-example personas persona-types validate validate-manifests
 
 # Helper to source .env file and activate virtual environment
 define run_with_env
@@ -29,6 +29,7 @@ help:
 	@echo "  personas         List all available personas by type"
 	@echo "  persona-types    Show persona type breakdown summary"
 	@echo "  validate         Validate all persona configurations"
+	@echo "  validate-manifests Validate all manifest.yaml files against schema"
 	@echo ""
 	@echo "Development:"
 	@echo "  lint             Run linting (ruff check)"
@@ -81,6 +82,10 @@ validate:
 	else \
 		python3 -c "from src.config.persona_loader import PersonaLoader; loader = PersonaLoader(); personas = loader.load_all_persona_types(); total = sum(len(p) for p in personas.values()); print(f'✅ Successfully loaded {total} personas across {len([k for k, v in personas.items() if v])} types'); [print(f'\n📋 {ptype.upper()} ({len(plist)}):') or [print(f'  ✓ {p.name} ({p.role})') for p in plist] for ptype, plist in personas.items() if plist]" 2>/dev/null || echo "❌ Validation failed. Check your configurations."; \
 	fi
+
+validate-manifests:
+	@echo "✅ Validating manifest.yaml files against JSON Schema..."
+	@$(call run_with_env,uv run python scripts/validate_manifests.py,python3 scripts/validate_manifests.py)
 
 persona-types:
 	@echo "🎭 Persona types breakdown:"

@@ -10,7 +10,7 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 
 class LoggingManager:
@@ -25,10 +25,10 @@ class LoggingManager:
             base_log_dir: Base directory for all logs
         """
         self.base_log_dir = Path(base_log_dir)
-        self.session_id: Optional[str] = None
-        self.session_dir: Optional[Path] = None
-        self.session_info: Dict[str, Any] = {}
-        self.loggers: Dict[str, logging.Logger] = {}
+        self.session_id: str | None = None
+        self.session_dir: Path | None = None
+        self.session_info: dict[str, Any] = {}
+        self.loggers: dict[str, logging.Logger] = {}
 
     @classmethod
     def get_instance(cls) -> "LoggingManager":
@@ -45,9 +45,9 @@ class LoggingManager:
     def start_session(
         self,
         content_info: str = "",
-        selected_agents: Optional[list[str]] = None,
+        selected_agents: list[str] | None = None,
         model_provider: str = "bedrock",
-        model_config: Optional[Dict[str, Any]] = None,
+        model_config: dict[str, Any] | None = None,
     ) -> str:
         """Start a new logging session.
 
@@ -218,7 +218,7 @@ class LoggingManager:
         return self.loggers[logger_key]
 
     def log_conversation_event(
-        self, event: str, details: Optional[Dict[str, Any]] = None
+        self, event: str, details: dict[str, Any] | None = None
     ) -> None:
         """Log a conversation-level event.
 
@@ -232,7 +232,7 @@ class LoggingManager:
             message += f" - Details: {json.dumps(details, default=str)}"
         logger.info(message)
 
-    def get_session_dir(self) -> Optional[Path]:
+    def get_session_dir(self) -> Path | None:
         """Get the current session directory.
 
         Returns:
@@ -240,7 +240,7 @@ class LoggingManager:
         """
         return self.session_dir
 
-    def get_session_id(self) -> Optional[str]:
+    def get_session_id(self) -> str | None:
         """Get the current session ID.
 
         Returns:
