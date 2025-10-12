@@ -9,6 +9,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from .logging_utils import log_tool_execution
+
 
 @dataclass
 class ParagraphInfo:
@@ -64,6 +66,7 @@ class EssayComponents:
     overall_structure_score: float = 0.0  # 0-1
 
 
+@log_tool_execution("document_structure_analysis")
 def analyze_document_structure(content: str) -> DocumentStructure:
     """
     Analyze document structure with objective metrics.
@@ -176,6 +179,7 @@ def analyze_document_structure(content: str) -> DocumentStructure:
     )
 
 
+@log_tool_execution("essay_components_detection")
 def detect_essay_components(content: str) -> EssayComponents:
     """
     Detect and analyze essay components (introduction, body, conclusion).
@@ -231,6 +235,7 @@ def detect_essay_components(content: str) -> EssayComponents:
     return components
 
 
+@log_tool_execution("paragraph_flow_analysis")
 def analyze_paragraph_flow(content: str) -> dict[str, Any]:
     """
     Analyze paragraph-to-paragraph flow and transitions.

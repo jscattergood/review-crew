@@ -242,6 +242,7 @@ def detect_cliches(content: str) -> ClicheAnalysis:
     )
 
 
+@log_tool_execution("personal_voice_analysis")
 def analyze_personal_voice(content: str) -> PersonalVoiceAnalysis:
     """
     Analyze personal voice strength and authenticity in writing.
