@@ -412,6 +412,10 @@ Be professional but thorough in your analysis."""
             print(f"   Truncated to {self._count_tokens(truncated_prompt)} tokens")
             prompt = truncated_prompt
 
+        # Force agent initialization to ensure system prompt is logged before user prompt
+        # This triggers the lazy loader which logs the system prompt
+        _ = self.agent
+
         # Log the prompt to the dedicated agent log
         self._log_prompt(prompt, prompt_type)
 
