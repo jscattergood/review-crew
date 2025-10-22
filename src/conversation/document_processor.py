@@ -29,6 +29,7 @@ class DocumentProcessorResult:
     validation_results: dict[str, Any] | None = None
     enhanced_manifest: dict[str, Any] | None = None
     original_path: str | None = None
+    formatted_context: str = ""  # Formatted context from context files
 
 
 class DocumentProcessorNode(MultiAgentBase):
@@ -114,11 +115,19 @@ class DocumentProcessorNode(MultiAgentBase):
 
             # Create agent result with the compiled content in the message
             # This is what the downstream agents will receive as input
+            # We put both the compiled content AND formatted_context in the message
+            # so contextualizers can access the context files, and reviewers can access the essays
+            message_content = result.compiled_content
+            
+            # Add formatted context as a special marker that contextualizer can extract
+            if result.formatted_context:
+                message_content = f"__CONTEXT_START__\n{result.formatted_context}\n__CONTEXT_END__\n\n{message_content}"
+            
             agent_result = AgentResult(
                 stop_reason="end_turn",
                 message=Message(
                     role="assistant",
-                    content=[ContentBlock(text=result.compiled_content)],
+                    content=[ContentBlock(text=message_content)],
                 ),
                 metrics=EventLoopMetrics(),
                 state={
@@ -127,6 +136,7 @@ class DocumentProcessorNode(MultiAgentBase):
                     "document_count": len(result.documents),
                     "manifest_config": result.manifest_config,
                     "enhanced_manifest": result.enhanced_manifest,
+                    "formatted_context": result.formatted_context,  # Make context accessible to downstream
                 },
             )
 
@@ -227,6 +237,16 @@ class DocumentProcessorNode(MultiAgentBase):
         if validation_results:
             self._report_validation_results(validation_results)
 
+        # Format context files if available
+        formatted_context = ""
+        if enhanced_manifest:
+            review_config = enhanced_manifest.get("review_configuration", {})
+            context_files = review_config.get("processed_context", [])
+            if context_files:
+                formatted_context = self._format_context_files(context_files)
+                if formatted_context:
+                    print(f"  ✓ Formatted {len(context_files)} context file(s) for reviewers")
+
         return DocumentProcessorResult(
             documents=documents,
             document_type="multi",
@@ -235,6 +255,7 @@ class DocumentProcessorNode(MultiAgentBase):
             validation_results=validation_results,
             enhanced_manifest=enhanced_manifest,
             original_path=str(directory_path),
+            formatted_context=formatted_context,
         )
 
     async def _process_single_file(self, file_path: Path) -> DocumentProcessorResult:
@@ -627,6 +648,33 @@ class DocumentProcessorNode(MultiAgentBase):
                 print(f"  ⚠️  Context file not found: {context_config['path']}")
 
         return context_files
+
+    def _format_context_files(self, context_files: list[dict[str, Any]]) -> str:
+        """Format context files into a string for injection into review prompts.
+        
+        Args:
+            context_files: List of processed context file configurations
+            
+        Returns:
+            Formatted context string
+        """
+        if not context_files:
+            return ""
+        
+        context_parts = []
+        
+        for context_file in context_files:
+            if context_file.get("loaded") and context_file.get("content"):
+                # Add context type as a header if specified
+                context_type = context_file.get("type", "general")
+                context_parts.append(f"### {context_type.replace('_', ' ').title()}")
+                context_parts.append("")
+                context_parts.append(context_file["content"].strip())
+                context_parts.append("")
+        
+        if context_parts:
+            return "\n".join(context_parts)
+        return ""
 
     def _process_document_relationships(
         self, review_config: dict[str, Any]

@@ -124,8 +124,8 @@ class TestReviewAgent:
             assert hasattr(result, 'execution_time')
             assert hasattr(result, 'execution_count')
             
-            # Verify review was called
-            mock_review.assert_called_once_with("test content")
+            # Verify review was called with content and empty context
+            mock_review.assert_called_once_with("test content", "")
 
     @pytest.mark.asyncio
     async def test_invoke_async_graph_with_error(self, agent):

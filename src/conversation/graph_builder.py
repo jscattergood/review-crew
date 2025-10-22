@@ -151,12 +151,16 @@ class ReviewGraphBuilder:
 
         for review_agent in review_agents_to_use:
             builder.add_node(review_agent, review_agent.name)
-            # Review agents depend on document processor
-            builder.add_edge("document_processor", review_agent.name)
-
-            # Review agents also depend on context agents (if any)
-            for context_agent in context_agents_to_use:
-                builder.add_edge(context_agent.name, review_agent.name)
+            
+            # If we have context agents, reviewers depend on them (sequential chain)
+            # Otherwise, reviewers depend directly on document processor
+            if context_agents_to_use:
+                # Sequential: document_processor → contextualizer → reviewer
+                for context_agent in context_agents_to_use:
+                    builder.add_edge(context_agent.name, review_agent.name)
+            else:
+                # No contextualizer: document_processor → reviewer (direct)
+                builder.add_edge("document_processor", review_agent.name)
 
         # 4. Add analysis agents (if enabled) - run in parallel
         if self.enable_analysis:
@@ -223,11 +227,16 @@ class ReviewGraphBuilder:
                 review_agent = self._apply_focus_to_reviewer(review_agent, focus_config)
 
             builder.add_node(review_agent, review_agent.name)
-            builder.add_edge("document_processor", review_agent.name)
-
-            # Connect to context agents
-            for context_agent in selected_contextualizers:
-                builder.add_edge(context_agent.name, review_agent.name)
+            
+            # If we have contextualizers, reviewers depend on them (sequential chain)
+            # Otherwise, reviewers depend directly on document processor
+            if selected_contextualizers:
+                # Sequential: document_processor → contextualizer → reviewer
+                for context_agent in selected_contextualizers:
+                    builder.add_edge(context_agent.name, review_agent.name)
+            else:
+                # No contextualizer: document_processor → reviewer (direct)
+                builder.add_edge("document_processor", review_agent.name)
 
         # 5. Add analysis agents
         for analysis_agent in selected_analyzers:

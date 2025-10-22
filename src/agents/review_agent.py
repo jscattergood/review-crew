@@ -33,11 +33,12 @@ class ReviewAgent(BaseAgent):
         # Initialize the base agent
         super().__init__(persona, model_provider, model_config_override)
 
-    async def review(self, content: str) -> str:
+    async def review(self, content: str, context: str = "") -> str:
         """Review content using the configured persona.
 
         Args:
             content: The content to review
+            context: Optional background context about the applicant
 
         Returns:
             Review feedback from the agent
@@ -63,7 +64,7 @@ class ReviewAgent(BaseAgent):
             if analysis_text:
                 # Include analysis data in the prompt
                 enhanced_prompt = f"""
-{self.persona.prompt_template.format(content=content)}
+{self.persona.prompt_template.format(content=content, context=context)}
 
 OBJECTIVE ANALYSIS DATA:
 {analysis_text}
@@ -74,7 +75,7 @@ Use this objective data to inform your evaluation. The analysis provides precise
                 )
 
         # Standard review without tools
-        prompt = self.persona.prompt_template.format(content=content)
+        prompt = self.persona.prompt_template.format(content=content, context=context)
         return await self.invoke_async_legacy(prompt, "review")
 
     async def invoke_async_graph(
@@ -99,10 +100,32 @@ Use this objective data to inform your evaluation. The analysis provides precise
         try:
             # Extract content from task using base agent logic
             content = self._extract_content_from_task(task)
+            
+            # Extract context from upstream document processor if available
+            context = kwargs.get("context", "")
+            if not context and isinstance(task, MultiAgentResult):
+                # Try to get context from document_processor node's state
+                # Document processor wraps its result in a nested MultiAgentResult
+                doc_proc_node = task.results.get("document_processor")
+                if doc_proc_node and hasattr(doc_proc_node, "result"):
+                    # Check if result is a MultiAgentResult (nested structure)
+                    if isinstance(doc_proc_node.result, MultiAgentResult):
+                        # Access nested document_processor node within the MultiAgentResult
+                        nested_doc_proc = doc_proc_node.result.results.get("document_processor")
+                        if nested_doc_proc and hasattr(nested_doc_proc, "result"):
+                            if isinstance(nested_doc_proc.result, AgentResult):
+                                agent_result = nested_doc_proc.result
+                                if hasattr(agent_result, "state") and isinstance(agent_result.state, dict):
+                                    context = agent_result.state.get("formatted_context", "")
+                    # Fallback: try direct AgentResult access
+                    elif isinstance(doc_proc_node.result, AgentResult):
+                        agent_result = doc_proc_node.result
+                        if hasattr(agent_result, "state") and isinstance(agent_result.state, dict):
+                            context = agent_result.state.get("formatted_context", "")
 
             # Process using the specialized review method with timing
             start_time = time.time()
-            response = await self.review(content)
+            response = await self.review(content, context)
             execution_time = int(time.time() - start_time)
 
             # Clean up any raw JSON that might have been generated in the response

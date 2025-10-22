@@ -652,102 +652,52 @@ Be professional but thorough in your analysis."""
             )
 
     def _extract_content_from_task(self, task: str | list[ContentBlock]) -> str:
-        """Extract content from various task input formats.
+        """Extract content from task input formats.
 
         Args:
-            task: Input task (string, dict, MultiAgentResult, or other format)
+            task: Input task (list[ContentBlock] from Strands graph, or str for legacy)
 
         Returns:
             Extracted content as string
         """
-        # Handle MultiAgentResult from Strands Graph
-        from strands.multiagent.base import MultiAgentResult
-
-        if isinstance(task, MultiAgentResult):
-            # Extract and combine content from all completed node results
-            combined_content = []
-
-            for node_name, node_result in task.results.items():
-                if node_result.status.value == "completed":
-                    # node_result.result can be AgentResult, MultiAgentResult, or Exception
-                    message: Message | None = None
-                    if isinstance(node_result.result, AgentResult):
-                        agent_result: AgentResult = node_result.result
-                        message = agent_result.message
-                    elif isinstance(node_result.result, MultiAgentResult):
-                        # For MultiAgentResult, we need to extract AgentResults from nested results
-                        agent_results = node_result.get_agent_results()
-                        if not agent_results:
-                            continue
-                        message = agent_results[-1].message  # Get the last agent result
-                    else:
-                        continue  # Skip exceptions or other types
-
-                    if isinstance(message, dict) and "content" in message:
-                        content_blocks = message["content"]
-                        if content_blocks and len(content_blocks) > 0:
-                            content_text: str = content_blocks[0].get("text", "")
-
-                            # Check if content_text is actually a JSON string that needs parsing
-                            if content_text.startswith(
-                                "{'role':"
-                            ) or content_text.startswith('{"role":'):
-                                try:
-                                    # Try to parse the JSON structure and extract the actual text
-                                    import ast
-
-                                    parsed = ast.literal_eval(
-                                        content_text.replace("'", '"')
-                                    )
-                                    if isinstance(parsed, dict) and "content" in parsed:
-                                        nested_content = parsed["content"]
-                                        if (
-                                            isinstance(nested_content, list)
-                                            and len(nested_content) > 0
-                                        ):
-                                            if (
-                                                isinstance(nested_content[0], dict)
-                                                and "text" in nested_content[0]
-                                            ):
-                                                content_text = nested_content[0]["text"]
-                                except:
-                                    # If parsing fails, use the original content_text
-                                    pass
-
-                            if not self._is_error_message(content_text):
-                                # Format as a clean agent contribution
-                                agent_name = agent_result.state.get(
-                                    "agent_name", node_name
-                                )
-                                combined_content.append(
-                                    f"**{agent_name}**: {content_text}"
-                                )
-
-            if combined_content:
-                return "\n\n".join(combined_content)
-            else:
-                return "ERROR_NO_CONTENT"
-
+        if isinstance(task, list):
+            # Handle list of ContentBlocks (most common case from Strands)
+            # Extract text from each ContentBlock dict and join them
+            text_parts = []
+            for item in task:
+                if isinstance(item, dict) and "text" in item:
+                    text_parts.append(item["text"])
+                elif isinstance(item, str):
+                    text_parts.append(item)
+            
+            combined_text = "\n".join(text_parts)
+            # Strip context markers before returning (reviewers shouldn't see raw context)
+            return self._strip_context_markers(combined_text)
         elif isinstance(task, str):
+            # Handle str (legacy direct content)
             # Check if this is an error message from document processing
             if self._is_error_message(task):
                 return "ERROR_NO_CONTENT"
-            return task
-        elif isinstance(task, dict):
-            # Check if this contains error information
-            if "error" in task or self._is_error_message(str(task)):
-                return "ERROR_NO_CONTENT"
-            # Try common content keys
-            for key in ["content", "text", "compiled_content", "data"]:
-                if key in task:
-                    content = str(task[key])
-                    if self._is_error_message(content):
-                        return "ERROR_NO_CONTENT"
-                    return content
-            # If no common keys, stringify the whole dict
-            return str(task)
+            # Strip context markers before returning
+            return self._strip_context_markers(task)
         else:
-            return str(task)
+            # Fallback for unexpected types (dict, etc.) - treat as error
+            # This handles runtime type mismatches gracefully
+            return "ERROR_NO_CONTENT"
+    
+    def _strip_context_markers(self, content: str) -> str:
+        """Remove context markers from content (for reviewers to not see raw context).
+        
+        Args:
+            content: Content that may contain context markers
+            
+        Returns:
+            Content with context markers removed
+        """
+        # Remove the __CONTEXT_START__...__CONTEXT_END__ section
+        # This ensures reviewers only see essays, not raw context files
+        cleaned = re.sub(r'__CONTEXT_START__\n.*?\n__CONTEXT_END__\n\n', '', content, flags=re.DOTALL)
+        return cleaned
 
     def _is_error_message(self, content: str) -> bool:
         """Check if content appears to be an error message.
