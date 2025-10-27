@@ -749,6 +749,10 @@ Be professional but thorough in your analysis."""
                 analyze_personal_voice,
                 detect_cliches,
             )
+            from ..tools.comparison_tools import (
+                calculate_text_similarity,
+                get_text_diff,
+            )
             from ..tools.structure_analysis import (
                 analyze_document_structure,
                 analyze_paragraph_flow,
@@ -773,6 +777,8 @@ Be professional but thorough in your analysis."""
                 "analyze_essay_strength": analyze_essay_strength,
                 "detect_cliches": detect_cliches,
                 "analyze_personal_voice": analyze_personal_voice,
+                "calculate_text_similarity": calculate_text_similarity,
+                "get_text_diff": get_text_diff,
             }
 
         except ImportError as e:
@@ -796,7 +802,7 @@ Be professional but thorough in your analysis."""
             analysis_types: List of analysis types to perform. If None, uses persona's tools_config
                           or auto-detects based on content.
                           Options: ['metrics', 'constraints', 'readability', 'vocabulary',
-                                   'structure', 'components', 'flow', 'strength', 'cliches', 'voice']
+                                   'structure', 'components', 'flow', 'strength', 'cliches', 'voice', 'comparison']
 
         Returns:
             Dictionary with analysis results from requested tools, including extracted constraints
@@ -833,15 +839,24 @@ Be professional but thorough in your analysis."""
                 else:
                     analysis_types = get_analysis_types_for_content(constraints)
 
-            # Extract just the essay content (after "ESSAY TO REVIEW:" or similar)
-            from ..tools.context_parser import extract_essay_content
+            # Extract essay content(s) from compiled document
+            # Returns list of essays (e.g., [primary_essay, supporting_essay])
+            from ..tools.comparison_tools import extract_essay_content
 
-            essay_content = extract_essay_content(content)
+            essays = extract_essay_content(content)
 
-            # Run analysis tools
+            # For single-essay analysis tools, use the first essay (primary)
+            # Skip if no essays found
+            if not essays:
+                print("⚠️  Warning: No essay content found for analysis")
+                return results
+
+            primary_essay = essays[0]
+
+            # Run analysis tools on primary essay
             if "metrics" in analysis_types and "get_text_metrics" in self.writing_tools:
                 results["metrics"] = self.writing_tools["get_text_metrics"](
-                    essay_content
+                    primary_essay
                 )
 
             if (
@@ -850,7 +865,7 @@ Be professional but thorough in your analysis."""
             ):
                 # Use dynamically extracted constraints
                 results["constraints"] = self.writing_tools["validate_constraints"](
-                    essay_content,
+                    primary_essay,
                     word_limit=constraints.word_limit,
                     character_limit=constraints.character_limit,
                     min_words=constraints.min_words,
@@ -862,7 +877,7 @@ Be professional but thorough in your analysis."""
                 and "analyze_readability" in self.writing_tools
             ):
                 results["readability"] = self.writing_tools["analyze_readability"](
-                    essay_content
+                    primary_essay
                 )
 
             if (
@@ -870,7 +885,7 @@ Be professional but thorough in your analysis."""
                 and "analyze_vocabulary" in self.writing_tools
             ):
                 results["vocabulary"] = self.writing_tools["analyze_vocabulary"](
-                    essay_content
+                    primary_essay
                 )
 
             if (
@@ -878,7 +893,7 @@ Be professional but thorough in your analysis."""
                 and "analyze_document_structure" in self.writing_tools
             ):
                 results["structure"] = self.writing_tools["analyze_document_structure"](
-                    essay_content
+                    primary_essay
                 )
 
             if (
@@ -886,7 +901,7 @@ Be professional but thorough in your analysis."""
                 and "detect_essay_components" in self.writing_tools
             ):
                 results["components"] = self.writing_tools["detect_essay_components"](
-                    essay_content
+                    primary_essay
                 )
 
             if (
@@ -894,7 +909,7 @@ Be professional but thorough in your analysis."""
                 and "analyze_paragraph_flow" in self.writing_tools
             ):
                 results["flow"] = self.writing_tools["analyze_paragraph_flow"](
-                    essay_content
+                    primary_essay
                 )
 
             if (
@@ -902,19 +917,48 @@ Be professional but thorough in your analysis."""
                 and "analyze_essay_strength" in self.writing_tools
             ):
                 results["strength"] = self.writing_tools["analyze_essay_strength"](
-                    essay_content
+                    primary_essay
                 )
 
             if "cliches" in analysis_types and "detect_cliches" in self.writing_tools:
-                results["cliches"] = self.writing_tools["detect_cliches"](essay_content)
+                results["cliches"] = self.writing_tools["detect_cliches"](primary_essay)
 
             if (
                 "voice" in analysis_types
                 and "analyze_personal_voice" in self.writing_tools
             ):
                 results["voice"] = self.writing_tools["analyze_personal_voice"](
-                    essay_content
+                    primary_essay
                 )
+
+            # Comparison analysis for multi-document scenarios
+            if (
+                "comparison" in analysis_types
+                and "calculate_text_similarity" in self.writing_tools
+            ):
+                try:
+                    # Use already extracted essays list
+                    if len(essays) >= 2:
+                        # Compare first two essays (primary and supporting)
+                        similarity_result = self.writing_tools[
+                            "calculate_text_similarity"
+                        ](essays[0], essays[1], ignore_whitespace=True)
+                        results["comparison"] = similarity_result
+
+                        # Also get diff if both essays exist
+                        if "get_text_diff" in self.writing_tools:
+                            diff_result = self.writing_tools["get_text_diff"](
+                                essays[0], essays[1]
+                            )
+                            results["comparison_diff"] = diff_result
+                    else:
+                        print(
+                            f"⚠️  Comparison: Found {len(essays)} essay(s), need at least 2 for comparison"
+                        )
+                except Exception as comp_error:
+                    print(
+                        f"⚠️  Warning: Could not perform comparison analysis: {comp_error}"
+                    )
 
         except Exception as e:
             print(f"⚠️  Warning: Error in content analysis: {e}")
@@ -956,6 +1000,34 @@ Be professional but thorough in your analysis."""
             return ""
 
         formatted_parts = []
+
+        # Comparison analysis (for multi-document scenarios)
+        if "comparison" in analysis_results:
+            comparison = analysis_results["comparison"]
+            similarity_status = ""
+
+            if comparison.are_nearly_identical:
+                similarity_status = "⚠️ NEARLY IDENTICAL (>95%)"
+            elif comparison.are_substantially_similar:
+                similarity_status = "Similar (>80%)"
+            elif comparison.have_material_differences:
+                similarity_status = "Materially Different (<80%)"
+            else:
+                similarity_status = "Identical (100%)"
+
+            formatted_parts.append(f"""
+DOCUMENT COMPARISON ANALYSIS:
+- Similarity: {comparison.similarity_percentage:.1f}%
+- Status: {similarity_status}
+- Word differences: {comparison.word_differences}
+- Character differences: {comparison.character_differences}
+- Total changes: {comparison.total_changes}""")
+
+            if comparison.are_nearly_identical:
+                formatted_parts.append("""
+⚠️ CRITICAL: These essays are >95% identical with only trivial word changes.
+DO NOT invent narrative, structural, or thematic differences that don't exist.
+Focus ONLY on identifying the specific word/phrase changes and their impact.""")
 
         # Context information (extracted constraints)
         if "context_info" in analysis_results:

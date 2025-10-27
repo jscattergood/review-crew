@@ -10,6 +10,11 @@ from .academic_tools import (
     analyze_personal_voice,
     detect_cliches,
 )
+from .comparison_tools import (
+    calculate_text_similarity,
+    extract_essay_content,
+    get_text_diff,
+)
 from .structure_analysis import (
     analyze_document_structure,
     analyze_paragraph_flow,
@@ -36,4 +41,8 @@ __all__ = [
     "analyze_essay_strength",
     "detect_cliches",
     "analyze_personal_voice",
+    # Comparison tools
+    "calculate_text_similarity",
+    "get_text_diff",
+    "extract_essay_content",
 ]
