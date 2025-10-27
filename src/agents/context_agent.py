@@ -179,9 +179,9 @@ class ContextAgent(BaseAgent):
             # Extract formatted_context from the task
             # Strands converts upstream outputs to list[ContentBlock], never MultiAgentResult
             import re
-            
+
             self.logger.info(f"[CONTEXT_AGENT] Task type: {type(task).__name__}")
-            
+
             # Extract raw content from list WITHOUT stripping markers
             # (ContextAgent needs the markers to find the context)
             if isinstance(task, list):
@@ -194,29 +194,41 @@ class ContextAgent(BaseAgent):
             else:
                 # Fallback to base extraction (for str or other types)
                 full_content = self._extract_content_from_task(task)
-            
+
             # Now extract context from markers and also preserve the essays/content
-            match = re.search(r'__CONTEXT_START__\n(.*?)\n__CONTEXT_END__\n\n(.*)', full_content, re.DOTALL)
+            match = re.search(
+                r"__CONTEXT_START__\n(.*?)\n__CONTEXT_END__\n\n(.*)",
+                full_content,
+                re.DOTALL,
+            )
             if match:
                 formatted_context = match.group(1)
                 essays_content = match.group(2)  # Preserve the essays
-                self.logger.info(f"[CONTEXT_AGENT] Extracted formatted_context from markers, length: {len(formatted_context)}")
-                self.logger.info(f"[CONTEXT_AGENT] Preserved essays content, length: {len(essays_content)}")
+                self.logger.info(
+                    f"[CONTEXT_AGENT] Extracted formatted_context from markers, length: {len(formatted_context)}"
+                )
+                self.logger.info(
+                    f"[CONTEXT_AGENT] Preserved essays content, length: {len(essays_content)}"
+                )
             else:
                 # Fallback: use full content (for backwards compatibility with workflows without context files)
                 formatted_context = full_content
                 essays_content = ""  # No essays to preserve
-                self.logger.info(f"[CONTEXT_AGENT] No markers found, using full content as fallback")
-            
+                self.logger.info(
+                    "[CONTEXT_AGENT] No markers found, using full content as fallback"
+                )
+
             # Process the context (not the essays) to create a summary
             start_time = time.time()
-            context_result: ContextResult = await self.process_context(formatted_context)
+            context_result: ContextResult = await self.process_context(
+                formatted_context
+            )
             execution_time = int(time.time() - start_time)
 
             # Format response: Context summary + Original essays content
             # This ensures the reviewer gets BOTH the context summary AND the essays
             response = f"**Context Summary:** {context_result.context_summary}\n\n**Formatted Context:** {context_result.formatted_context}"
-            
+
             # IMPORTANT: Pass through the original essays content
             if essays_content:
                 response += f"\n\n{essays_content}"

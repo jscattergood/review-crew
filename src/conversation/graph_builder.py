@@ -151,7 +151,7 @@ class ReviewGraphBuilder:
 
         for review_agent in review_agents_to_use:
             builder.add_node(review_agent, review_agent.name)
-            
+
             # If we have context agents, reviewers depend on them (sequential chain)
             # Otherwise, reviewers depend directly on document processor
             if context_agents_to_use:
@@ -227,7 +227,7 @@ class ReviewGraphBuilder:
                 review_agent = self._apply_focus_to_reviewer(review_agent, focus_config)
 
             builder.add_node(review_agent, review_agent.name)
-            
+
             # If we have contextualizers, reviewers depend on them (sequential chain)
             # Otherwise, reviewers depend directly on document processor
             if selected_contextualizers:

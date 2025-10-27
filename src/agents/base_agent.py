@@ -669,7 +669,7 @@ Be professional but thorough in your analysis."""
                     text_parts.append(item["text"])
                 elif isinstance(item, str):
                     text_parts.append(item)
-            
+
             combined_text = "\n".join(text_parts)
             # Strip context markers before returning (reviewers shouldn't see raw context)
             return self._strip_context_markers(combined_text)
@@ -684,19 +684,21 @@ Be professional but thorough in your analysis."""
             # Fallback for unexpected types (dict, etc.) - treat as error
             # This handles runtime type mismatches gracefully
             return "ERROR_NO_CONTENT"
-    
+
     def _strip_context_markers(self, content: str) -> str:
         """Remove context markers from content (for reviewers to not see raw context).
-        
+
         Args:
             content: Content that may contain context markers
-            
+
         Returns:
             Content with context markers removed
         """
         # Remove the __CONTEXT_START__...__CONTEXT_END__ section
         # This ensures reviewers only see essays, not raw context files
-        cleaned = re.sub(r'__CONTEXT_START__\n.*?\n__CONTEXT_END__\n\n', '', content, flags=re.DOTALL)
+        cleaned = re.sub(
+            r"__CONTEXT_START__\n.*?\n__CONTEXT_END__\n\n", "", content, flags=re.DOTALL
+        )
         return cleaned
 
     def _is_error_message(self, content: str) -> bool:

@@ -100,7 +100,7 @@ Use this objective data to inform your evaluation. The analysis provides precise
         try:
             # Extract content from task using base agent logic
             content = self._extract_content_from_task(task)
-            
+
             # Extract context from upstream document processor if available
             context = kwargs.get("context", "")
             if not context and isinstance(task, MultiAgentResult):
@@ -111,16 +111,24 @@ Use this objective data to inform your evaluation. The analysis provides precise
                     # Check if result is a MultiAgentResult (nested structure)
                     if isinstance(doc_proc_node.result, MultiAgentResult):
                         # Access nested document_processor node within the MultiAgentResult
-                        nested_doc_proc = doc_proc_node.result.results.get("document_processor")
+                        nested_doc_proc = doc_proc_node.result.results.get(
+                            "document_processor"
+                        )
                         if nested_doc_proc and hasattr(nested_doc_proc, "result"):
                             if isinstance(nested_doc_proc.result, AgentResult):
                                 agent_result = nested_doc_proc.result
-                                if hasattr(agent_result, "state") and isinstance(agent_result.state, dict):
-                                    context = agent_result.state.get("formatted_context", "")
+                                if hasattr(agent_result, "state") and isinstance(
+                                    agent_result.state, dict
+                                ):
+                                    context = agent_result.state.get(
+                                        "formatted_context", ""
+                                    )
                     # Fallback: try direct AgentResult access
                     elif isinstance(doc_proc_node.result, AgentResult):
                         agent_result = doc_proc_node.result
-                        if hasattr(agent_result, "state") and isinstance(agent_result.state, dict):
+                        if hasattr(agent_result, "state") and isinstance(
+                            agent_result.state, dict
+                        ):
                             context = agent_result.state.get("formatted_context", "")
 
             # Process using the specialized review method with timing

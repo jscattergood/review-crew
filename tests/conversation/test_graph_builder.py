@@ -5,27 +5,28 @@ This module tests the ReviewGraphBuilder class that constructs Strands graphs
 using our refactored agents that directly inherit from MultiAgentBase.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
-from src.conversation.graph_builder import ReviewGraphBuilder
-from src.agents.review_agent import ReviewAgent
-from src.agents.context_agent import ContextAgent
-from src.agents.analysis_agent import AnalysisAgent
-from src.config.persona_loader import PersonaLoader, PersonaConfig
+import pytest
 from strands.multiagent import GraphBuilder
 from strands.multiagent.base import MultiAgentResult, Status
+
+from src.agents.analysis_agent import AnalysisAgent
+from src.agents.context_agent import ContextAgent
+from src.agents.review_agent import ReviewAgent
+from src.config.persona_loader import PersonaConfig, PersonaLoader
+from src.conversation.graph_builder import ReviewGraphBuilder
 
 
 class TestReviewGraphBuilder:
     """Test cases for ReviewGraphBuilder."""
-    
+
     @pytest.fixture
     def mock_persona_loader(self):
         """Create a mock PersonaLoader."""
         loader = Mock(spec=PersonaLoader)
-        
+
         # Mock reviewer personas
         reviewer_persona = Mock(spec=PersonaConfig)
         reviewer_persona.name = "Test Reviewer"
@@ -34,9 +35,9 @@ class TestReviewGraphBuilder:
         reviewer_persona.backstory = "Expert reviewer"
         reviewer_persona.prompt_template = "Review: {content}"
         reviewer_persona.model_config = {}
-        
+
         loader.load_reviewer_personas.return_value = [reviewer_persona]
-        
+
         # Mock contextualizer personas
         context_persona = Mock(spec=PersonaConfig)
         context_persona.name = "Test Contextualizer"
@@ -45,9 +46,9 @@ class TestReviewGraphBuilder:
         context_persona.backstory = "Expert contextualizer"
         context_persona.prompt_template = "Process: {content}"
         context_persona.model_config = {}
-        
+
         loader.load_contextualizer_personas.return_value = [context_persona]
-        
+
         # Mock analyzer personas
         analyzer_persona = Mock(spec=PersonaConfig)
         analyzer_persona.name = "Test Analyzer"
@@ -56,27 +57,27 @@ class TestReviewGraphBuilder:
         analyzer_persona.backstory = "Expert analyzer"
         analyzer_persona.prompt_template = "Analyze: {content}"
         analyzer_persona.model_config = {}
-        
+
         loader.load_analyzer_personas.return_value = [analyzer_persona]
-        
+
         # Mock manifest loading methods
         loader.load_contextualizers_from_manifest.return_value = [context_persona]
         loader.load_reviewers_from_manifest.return_value = [reviewer_persona]
         loader.load_analyzers_from_manifest.return_value = [analyzer_persona]
-        
+
         return loader
-    
+
     @pytest.fixture
     def builder(self, mock_persona_loader):
         """Create a ReviewGraphBuilder for testing."""
-        with patch('src.agents.base_agent.Agent'):  # Mock the internal Strands Agent
+        with patch("src.agents.base_agent.Agent"):  # Mock the internal Strands Agent
             return ReviewGraphBuilder(
                 persona_loader=mock_persona_loader,
                 model_provider="bedrock",
                 model_config={"test": "config"},
-                enable_analysis=True
+                enable_analysis=True,
             )
-    
+
     def test_init(self, builder, mock_persona_loader):
         """Test ReviewGraphBuilder initialization."""
         assert builder.persona_loader == mock_persona_loader
@@ -86,329 +87,336 @@ class TestReviewGraphBuilder:
         assert len(builder.review_agents) == 1
         assert len(builder.context_agents) == 1
         assert len(builder.analysis_agents) == 1
-    
+
     def test_init_without_analysis(self, mock_persona_loader):
         """Test ReviewGraphBuilder initialization with analysis disabled."""
-        with patch('src.agents.base_agent.Agent'):
+        with patch("src.agents.base_agent.Agent"):
             builder = ReviewGraphBuilder(
-                persona_loader=mock_persona_loader,
-                enable_analysis=False
+                persona_loader=mock_persona_loader, enable_analysis=False
             )
-        
+
         assert builder.enable_analysis is False
         assert len(builder.analysis_agents) == 0
-    
+
     def test_init_default_persona_loader(self):
         """Test ReviewGraphBuilder initialization with default PersonaLoader."""
-        with patch('src.agents.base_agent.Agent'), \
-             patch('src.conversation.graph_builder.PersonaLoader') as mock_loader_class:
+        with (
+            patch("src.agents.base_agent.Agent"),
+            patch("src.conversation.graph_builder.PersonaLoader") as mock_loader_class,
+        ):
             mock_loader = Mock()
             mock_loader.load_reviewer_personas.return_value = []
             mock_loader.load_contextualizer_personas.return_value = []
             mock_loader.load_analyzer_personas.return_value = []
             mock_loader_class.return_value = mock_loader
-            
+
             builder = ReviewGraphBuilder()
-            
+
             assert builder.persona_loader == mock_loader
             mock_loader_class.assert_called_once()
-    
-    @patch('src.conversation.graph_builder.GraphBuilder')
+
+    @patch("src.conversation.graph_builder.GraphBuilder")
     def test_build_standard_review_graph(self, mock_graph_builder_class, builder):
         """Test building a standard review graph."""
         mock_builder = Mock()
         mock_graph = Mock()
         mock_builder.build.return_value = mock_graph
         mock_graph_builder_class.return_value = mock_builder
-        
+
         result = builder.build_standard_review_graph()
-        
+
         assert result == mock_graph
-        
+
         # Verify graph construction calls
         mock_builder.add_node.assert_called()
         mock_builder.add_edge.assert_called()
         mock_builder.set_entry_point.assert_called_with("document_processor")
         mock_builder.build.assert_called_once()
-    
-    @patch('src.conversation.graph_builder.GraphBuilder')
-    def test_build_standard_review_graph_with_selections(self, mock_graph_builder_class, builder):
+
+    @patch("src.conversation.graph_builder.GraphBuilder")
+    def test_build_standard_review_graph_with_selections(
+        self, mock_graph_builder_class, builder
+    ):
         """Test building a standard review graph with agent selections."""
         mock_builder = Mock()
         mock_graph = Mock()
         mock_builder.build.return_value = mock_graph
         mock_graph_builder_class.return_value = mock_builder
-        
+
         result = builder.build_standard_review_graph(
             selected_reviewers=["Test Reviewer"],
             selected_contextualizers=["Test Contextualizer"],
-            selected_analyzers=["Test Analyzer"]
+            selected_analyzers=["Test Analyzer"],
         )
-        
+
         assert result == mock_graph
         mock_builder.build.assert_called_once()
-    
-    @patch('src.conversation.graph_builder.GraphBuilder')
+
+    @patch("src.conversation.graph_builder.GraphBuilder")
     def test_build_manifest_driven_graph(self, mock_graph_builder_class, builder):
         """Test building a manifest-driven review graph."""
         mock_builder = Mock()
         mock_graph = Mock()
         mock_builder.build.return_value = mock_graph
         mock_graph_builder_class.return_value = mock_builder
-        
+
         manifest_config = {
             "review_configuration": {
                 "reviewers": {"names": ["Test Reviewer"]},
                 "contextualizers": {"names": ["Test Contextualizer"]},
                 "analyzers": {"names": ["Test Analyzer"]},
-                "processed_focus": {
-                    "focus_instructions": ["Focus on accuracy"]
-                }
+                "processed_focus": {"focus_instructions": ["Focus on accuracy"]},
             }
         }
-        
+
         result = builder.build_manifest_driven_graph(manifest_config)
-        
+
         assert result == mock_graph
         mock_builder.build.assert_called_once()
-    
-    @patch('src.conversation.graph_builder.GraphBuilder')
+
+    @patch("src.conversation.graph_builder.GraphBuilder")
     def test_build_simple_review_graph(self, mock_graph_builder_class, builder):
         """Test building a simple review graph."""
         mock_builder = Mock()
         mock_graph = Mock()
         mock_builder.build.return_value = mock_graph
         mock_graph_builder_class.return_value = mock_builder
-        
+
         result = builder.build_simple_review_graph("test content")
-        
+
         assert result == mock_graph
         mock_builder.build.assert_called_once()
-    
+
     def test_filter_review_agents_all(self, builder):
         """Test filtering review agents with None (all agents)."""
         result = builder._filter_review_agents(None)
         assert result == builder.review_agents
-    
+
     def test_filter_review_agents_specific(self, builder):
         """Test filtering review agents with specific names."""
         result = builder._filter_review_agents(["Test Reviewer"])
         assert len(result) == 1
         assert result[0].persona.name == "Test Reviewer"
-    
+
     def test_filter_review_agents_not_found(self, builder):
         """Test filtering review agents with non-existent names."""
         result = builder._filter_review_agents(["Nonexistent Agent"])
         # Should fallback to all agents
         assert result == builder.review_agents
-    
+
     def test_filter_context_agents_all(self, builder):
         """Test filtering context agents with None (all agents)."""
         result = builder._filter_context_agents(None)
         assert result == builder.context_agents
-    
+
     def test_filter_context_agents_specific(self, builder):
         """Test filtering context agents with specific names."""
         result = builder._filter_context_agents(["Test Contextualizer"])
         assert len(result) == 1
         assert result[0].persona.name == "Test Contextualizer"
-    
+
     def test_filter_analysis_agents_all(self, builder):
         """Test filtering analysis agents with None (all agents)."""
         result = builder._filter_analysis_agents(None)
         assert result == builder.analysis_agents
-    
+
     def test_filter_analysis_agents_specific(self, builder):
         """Test filtering analysis agents with specific names."""
         result = builder._filter_analysis_agents(["Test Analyzer"])
         assert len(result) == 1
         assert result[0].persona.name == "Test Analyzer"
-    
+
     def test_load_contextualizers_from_manifest_success(self, builder):
         """Test loading contextualizers from manifest successfully."""
         review_config = {"contextualizers": {"names": ["Test Contextualizer"]}}
-        
+
         result = builder._load_contextualizers_from_manifest(review_config)
-        
+
         assert len(result) == 1
         assert isinstance(result[0], ContextAgent)
-        builder.persona_loader.load_contextualizers_from_manifest.assert_called_once_with(review_config)
-    
+        builder.persona_loader.load_contextualizers_from_manifest.assert_called_once_with(
+            review_config
+        )
+
     def test_load_contextualizers_from_manifest_error(self, builder):
         """Test loading contextualizers from manifest with error."""
-        builder.persona_loader.load_contextualizers_from_manifest.side_effect = Exception("Load error")
+        builder.persona_loader.load_contextualizers_from_manifest.side_effect = (
+            Exception("Load error")
+        )
         review_config = {"contextualizers": {"names": ["Test Contextualizer"]}}
-        
+
         result = builder._load_contextualizers_from_manifest(review_config)
-        
+
         # Should fallback to all available context agents
         assert result == builder.context_agents
-    
+
     def test_load_reviewers_from_manifest_success(self, builder):
         """Test loading reviewers from manifest successfully."""
         review_config = {"reviewers": {"names": ["Test Reviewer"]}}
-        
+
         result = builder._load_reviewers_from_manifest(review_config)
-        
+
         assert len(result) == 1
         assert isinstance(result[0], ReviewAgent)
-        builder.persona_loader.load_reviewers_from_manifest.assert_called_once_with(review_config)
-    
+        builder.persona_loader.load_reviewers_from_manifest.assert_called_once_with(
+            review_config
+        )
+
     def test_load_reviewers_from_manifest_error(self, builder):
         """Test loading reviewers from manifest with error."""
-        builder.persona_loader.load_reviewers_from_manifest.side_effect = Exception("Load error")
+        builder.persona_loader.load_reviewers_from_manifest.side_effect = Exception(
+            "Load error"
+        )
         review_config = {"reviewers": {"names": ["Test Reviewer"]}}
-        
+
         result = builder._load_reviewers_from_manifest(review_config)
-        
+
         # Should fallback to all available review agents
         assert result == builder.review_agents
-    
+
     def test_load_analyzers_from_manifest_success(self, builder):
         """Test loading analyzers from manifest successfully."""
         review_config = {"analyzers": {"names": ["Test Analyzer"]}}
-        
+
         result = builder._load_analyzers_from_manifest(review_config)
-        
+
         assert len(result) == 1
         assert isinstance(result[0], AnalysisAgent)
-        builder.persona_loader.load_analyzers_from_manifest.assert_called_once_with(review_config)
-    
+        builder.persona_loader.load_analyzers_from_manifest.assert_called_once_with(
+            review_config
+        )
+
     def test_load_analyzers_from_manifest_disabled(self, mock_persona_loader):
         """Test loading analyzers from manifest when analysis is disabled."""
-        with patch('src.agents.base_agent.Agent'):
+        with patch("src.agents.base_agent.Agent"):
             builder = ReviewGraphBuilder(
-                persona_loader=mock_persona_loader,
-                enable_analysis=False
+                persona_loader=mock_persona_loader, enable_analysis=False
             )
-        
+
         result = builder._load_analyzers_from_manifest({})
-        
+
         assert result == []
-    
+
     def test_load_analyzers_from_manifest_error(self, builder):
         """Test loading analyzers from manifest with error."""
-        builder.persona_loader.load_analyzers_from_manifest.side_effect = Exception("Load error")
+        builder.persona_loader.load_analyzers_from_manifest.side_effect = Exception(
+            "Load error"
+        )
         review_config = {"analyzers": {"names": ["Test Analyzer"]}}
-        
+
         result = builder._load_analyzers_from_manifest(review_config)
-        
+
         # Should fallback to all available analysis agents
         assert result == builder.analysis_agents
-    
+
     def test_apply_focus_to_reviewer(self, builder):
         """Test applying focus instructions to a reviewer."""
         reviewer = builder.review_agents[0]
         focus_config = {
             "focus_instructions": [
                 "🔴 CRITICAL: Pay attention to accuracy",
-                "🟡 HIGH PRIORITY: Check grammar"
+                "🟡 HIGH PRIORITY: Check grammar",
             ]
         }
-        
+
         result = builder._apply_focus_to_reviewer(reviewer, focus_config)
-        
+
         assert isinstance(result, ReviewAgent)
         assert result.persona.name == reviewer.persona.name
         assert "SPECIAL FOCUS AREAS" in result.persona.prompt_template
         assert "Pay attention to accuracy" in result.persona.prompt_template
         assert "Check grammar" in result.persona.prompt_template
-    
+
     def test_apply_focus_to_reviewer_no_instructions(self, builder):
         """Test applying focus to reviewer with no instructions."""
         reviewer = builder.review_agents[0]
         focus_config = {"focus_instructions": []}
-        
+
         result = builder._apply_focus_to_reviewer(reviewer, focus_config)
-        
+
         assert result == reviewer  # Should return original reviewer
-    
+
     def test_get_available_agents_info(self, builder):
         """Test getting available agents information."""
         result = builder.get_available_agents_info()
-        
+
         assert "reviewers" in result
         assert "contextualizers" in result
         assert "analyzers" in result
-        
+
         assert len(result["reviewers"]) == 1
         assert len(result["contextualizers"]) == 1
         assert len(result["analyzers"]) == 1
-        
+
         # Check structure of agent info
         reviewer_info = result["reviewers"][0]
         assert "name" in reviewer_info
         assert "role" in reviewer_info
         assert "goal" in reviewer_info
-    
+
     # Note: Conditional edge tests removed - Strands doesn't support conditional edges
-    
 
-    
-
-    
-
-    
     def test_load_review_agents_error_handling(self, mock_persona_loader):
         """Test error handling when loading review agents fails."""
         mock_persona_loader.load_reviewer_personas.side_effect = Exception("Load error")
-        
-        with patch('src.agents.base_agent.Agent'):
+
+        with patch("src.agents.base_agent.Agent"):
             builder = ReviewGraphBuilder(persona_loader=mock_persona_loader)
-        
+
         assert len(builder.review_agents) == 0
-    
+
     def test_load_context_agents_error_handling(self, mock_persona_loader):
         """Test error handling when loading context agents fails."""
-        mock_persona_loader.load_contextualizer_personas.side_effect = Exception("Load error")
-        
-        with patch('src.agents.base_agent.Agent'):
+        mock_persona_loader.load_contextualizer_personas.side_effect = Exception(
+            "Load error"
+        )
+
+        with patch("src.agents.base_agent.Agent"):
             builder = ReviewGraphBuilder(persona_loader=mock_persona_loader)
-        
+
         assert len(builder.context_agents) == 0
-    
+
     def test_load_analysis_agents_error_handling(self, mock_persona_loader):
         """Test error handling when loading analysis agents fails."""
         mock_persona_loader.load_analyzer_personas.side_effect = Exception("Load error")
-        
-        with patch('src.agents.base_agent.Agent'):
+
+        with patch("src.agents.base_agent.Agent"):
             builder = ReviewGraphBuilder(
-                persona_loader=mock_persona_loader, 
-                enable_analysis=True
+                persona_loader=mock_persona_loader, enable_analysis=True
             )
-        
+
         assert len(builder.analysis_agents) == 0
-    
+
     @pytest.mark.asyncio
     async def test_execute_graph_async(self, builder):
         """Test asynchronous graph execution."""
         mock_graph = Mock()
         mock_result = Mock(spec=MultiAgentResult)
-        
+
         # Mock the async method properly
         async def mock_invoke_async(input_data):
             return mock_result
+
         mock_graph.invoke_async = mock_invoke_async
-        
+
         result = await builder.execute_graph(mock_graph, "test input")
-        
+
         assert result == mock_result
-    
 
     def test_agents_are_multiagent_base_compatible(self, builder):
         """Test that our agents are compatible with MultiAgentBase interface."""
         # Test that agents have the required methods
         for agent in builder.review_agents:
-            assert hasattr(agent, '__call__')
-            assert hasattr(agent, 'invoke_async_graph')
-            assert hasattr(agent, 'name')
-        
+            assert callable(agent)
+            assert hasattr(agent, "invoke_async_graph")
+            assert hasattr(agent, "name")
+
         for agent in builder.context_agents:
-            assert hasattr(agent, '__call__')
-            assert hasattr(agent, 'invoke_async_graph')
-            assert hasattr(agent, 'name')
-        
+            assert callable(agent)
+            assert hasattr(agent, "invoke_async_graph")
+            assert hasattr(agent, "name")
+
         for agent in builder.analysis_agents:
-            assert hasattr(agent, '__call__')
-            assert hasattr(agent, 'invoke_async_graph')
-            assert hasattr(agent, 'name')
+            assert callable(agent)
+            assert hasattr(agent, "invoke_async_graph")
+            assert hasattr(agent, "name")

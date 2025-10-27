@@ -1,9 +1,10 @@
 """Pytest configuration and fixtures for Review-Crew tests."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock
-from pathlib import Path
 import sys
+from pathlib import Path
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -20,10 +21,7 @@ def mock_persona():
         goal="Test goal for unit testing",
         backstory="Test backstory for unit testing",
         prompt_template="Test prompt: {content}",
-        model_config={
-            'temperature': 0.3,
-            'max_tokens': 1000
-        }
+        model_config={"temperature": 0.3, "max_tokens": 1000},
     )
 
 
@@ -36,10 +34,7 @@ def mock_contextualizer_persona():
         goal="Format test context information",
         backstory="Test contextualizer for unit testing",
         prompt_template="Format this context: {content}",
-        model_config={
-            'temperature': 0.2,
-            'max_tokens': 1500
-        }
+        model_config={"temperature": 0.2, "max_tokens": 1500},
     )
 
 
@@ -53,7 +48,9 @@ def mock_llm_response():
 def mock_async_llm_response():
     """Mock async LLM response for testing."""
     mock = AsyncMock()
-    mock.return_value = Mock(message="This is a mock async review response from the test LLM.")
+    mock.return_value = Mock(
+        message="This is a mock async review response from the test LLM."
+    )
     return mock
 
 
@@ -107,7 +104,7 @@ def test_files_dir():
 
 class MockPersonaLoader:
     """Mock PersonaLoader for testing."""
-    
+
     def __init__(self, personas=None):
         self.personas = personas or []
         # Create mock methods that can be configured by tests
@@ -115,7 +112,7 @@ class MockPersonaLoader:
         self.load_analyzer_personas = Mock(return_value=[])
         self.load_contextualizer_personas = Mock(return_value=[])
         self.load_persona = Mock(side_effect=self._load_persona_side_effect)
-    
+
     def _load_persona_side_effect(self, filepath):
         if self.personas:
             return self.personas[0]

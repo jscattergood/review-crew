@@ -118,11 +118,11 @@ class DocumentProcessorNode(MultiAgentBase):
             # We put both the compiled content AND formatted_context in the message
             # so contextualizers can access the context files, and reviewers can access the essays
             message_content = result.compiled_content
-            
+
             # Add formatted context as a special marker that contextualizer can extract
             if result.formatted_context:
                 message_content = f"__CONTEXT_START__\n{result.formatted_context}\n__CONTEXT_END__\n\n{message_content}"
-            
+
             agent_result = AgentResult(
                 stop_reason="end_turn",
                 message=Message(
@@ -245,7 +245,9 @@ class DocumentProcessorNode(MultiAgentBase):
             if context_files:
                 formatted_context = self._format_context_files(context_files)
                 if formatted_context:
-                    print(f"  ✓ Formatted {len(context_files)} context file(s) for reviewers")
+                    print(
+                        f"  ✓ Formatted {len(context_files)} context file(s) for reviewers"
+                    )
 
         return DocumentProcessorResult(
             documents=documents,
@@ -651,18 +653,18 @@ class DocumentProcessorNode(MultiAgentBase):
 
     def _format_context_files(self, context_files: list[dict[str, Any]]) -> str:
         """Format context files into a string for injection into review prompts.
-        
+
         Args:
             context_files: List of processed context file configurations
-            
+
         Returns:
             Formatted context string
         """
         if not context_files:
             return ""
-        
+
         context_parts = []
-        
+
         for context_file in context_files:
             if context_file.get("loaded") and context_file.get("content"):
                 # Add context type as a header if specified
@@ -671,7 +673,7 @@ class DocumentProcessorNode(MultiAgentBase):
                 context_parts.append("")
                 context_parts.append(context_file["content"].strip())
                 context_parts.append("")
-        
+
         if context_parts:
             return "\n".join(context_parts)
         return ""

@@ -1,11 +1,12 @@
 """Core tests for ConversationManager functionality."""
 
-import pytest
-from unittest.mock import Mock, patch
 from datetime import datetime
+from unittest.mock import Mock, patch
 
-from src.conversation.manager import ConversationManager
+import pytest
+
 from src.agents.data_models import ConversationResult, ReviewResult
+from src.conversation.manager import ConversationManager
 
 
 class TestConversationManagerCore:
@@ -23,12 +24,12 @@ class TestConversationManagerCore:
     @pytest.fixture
     def manager(self, mock_persona_loader):
         """Create a ConversationManager with mocked dependencies."""
-        with patch('src.conversation.manager.AnalysisAgent'):
+        with patch("src.conversation.manager.AnalysisAgent"):
             return ConversationManager(persona_loader=mock_persona_loader)
 
     def test_init_basic(self, mock_persona_loader):
         """Test basic ConversationManager initialization."""
-        with patch('src.conversation.manager.AnalysisAgent'):
+        with patch("src.conversation.manager.AnalysisAgent"):
             manager = ConversationManager(persona_loader=mock_persona_loader)
             assert manager is not None
             assert manager.persona_loader == mock_persona_loader
@@ -42,14 +43,14 @@ class TestConversationManagerCore:
                     agent_name="Test Agent",
                     agent_role="Tester",
                     feedback="Test feedback",
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(),
                 )
             ],
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
-        
+
         formatted = manager.format_results(result)
-        
+
         # Should use new format
         assert "## Content" in formatted
         assert "## Reviews" in formatted
@@ -70,7 +71,7 @@ class TestConversationManagerCore:
         raw_json = "{'role': 'assistant', 'content': [{'text': 'Clean text'}]}"
         result = manager._clean_raw_json(raw_json)
         assert result == "Clean text"
-        
+
         # Test with regular text
         regular_text = "This is regular text"
         result = manager._clean_raw_json(regular_text)
@@ -84,14 +85,14 @@ class TestConversationManagerCore:
             # Use a simple string input that should trigger error handling
             result = await manager.run_review("input/nonexistent")
             assert isinstance(result, ConversationResult)
-        except Exception as e:
+        except Exception:
             # If it fails, at least we know the method exists
-            assert hasattr(manager, 'run_review')
+            assert hasattr(manager, "run_review")
 
     def test_manager_has_required_attributes(self, manager):
         """Test that manager has the required attributes."""
-        assert hasattr(manager, 'persona_loader')
-        assert hasattr(manager, 'format_results')
-        assert hasattr(manager, 'run_review')
-        assert hasattr(manager, '_is_error_content')
-        assert hasattr(manager, '_clean_raw_json')
+        assert hasattr(manager, "persona_loader")
+        assert hasattr(manager, "format_results")
+        assert hasattr(manager, "run_review")
+        assert hasattr(manager, "_is_error_content")
+        assert hasattr(manager, "_clean_raw_json")

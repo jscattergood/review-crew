@@ -1,13 +1,14 @@
 """Tests for ConversationManager.format_results method."""
 
-import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch
 
-from src.conversation.manager import ConversationManager
-from src.agents.data_models import ConversationResult, ReviewResult
-from src.agents.context_agent import ContextResult
+import pytest
+
 from src.agents.analysis_agent import AnalysisResult
+from src.agents.context_agent import ContextResult
+from src.agents.data_models import ConversationResult, ReviewResult
+from src.conversation.manager import ConversationManager
 
 
 class TestFormatResults:
@@ -25,7 +26,7 @@ class TestFormatResults:
     @pytest.fixture
     def manager(self, mock_persona_loader):
         """Create a ConversationManager with mocked dependencies."""
-        with patch('src.conversation.manager.AnalysisAgent'):
+        with patch("src.conversation.manager.AnalysisAgent"):
             return ConversationManager(persona_loader=mock_persona_loader)
 
     def test_format_results_basic(self, manager):
@@ -37,14 +38,14 @@ class TestFormatResults:
                     agent_name="Test Agent",
                     agent_role="Tester",
                     feedback="Test feedback",
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(),
                 )
             ],
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
-        
+
         formatted = manager.format_results(result)
-        
+
         assert "## Content" in formatted
         assert "Test content" in formatted
         assert "## Reviews" in formatted
@@ -61,14 +62,14 @@ class TestFormatResults:
                     agent_name="Test Agent",
                     agent_role="Tester",
                     feedback="Test feedback",
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(),
                 )
             ],
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
-        
+
         formatted = manager.format_results(result, include_content=False)
-        
+
         assert "## Content" not in formatted
         assert "Test content" not in formatted
         assert "## Reviews" in formatted
@@ -85,21 +86,21 @@ class TestFormatResults:
                     agent_name="Test Agent",
                     agent_role="Tester",
                     feedback="Test feedback",
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(),
                 )
             ],
             context_results=[
                 ContextResult(
                     formatted_context="Test context",
                     context_summary="Context summary",
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(),
                 )
             ],
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
-        
+
         formatted = manager.format_results(result, include_context=True)
-        
+
         assert "## Content" in formatted
         assert "## Reviews" in formatted
         assert "## Context" in formatted
@@ -114,7 +115,7 @@ class TestFormatResults:
                     agent_name="Test Agent",
                     agent_role="Tester",
                     feedback="Test feedback",
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(),
                 )
             ],
             analysis_results=[
@@ -122,14 +123,14 @@ class TestFormatResults:
                     synthesis="Test analysis synthesis",
                     key_themes=["Theme 1", "Theme 2"],
                     priority_recommendations=["Rec 1", "Rec 2"],
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(),
                 )
             ],
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
-        
+
         formatted = manager.format_results(result)
-        
+
         assert "## Content" in formatted
         assert "## Reviews" in formatted
         assert "## Analysis" in formatted
@@ -151,22 +152,22 @@ class TestFormatResults:
                     agent_name="Good Agent",
                     agent_role="Tester",
                     feedback="Good feedback",
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(),
                 ),
                 ReviewResult(
                     agent_name="Bad Agent",
                     agent_role="Tester",
                     feedback="",
                     error="Something went wrong",
-                    timestamp=datetime.now()
-                )
+                    timestamp=datetime.now(),
+                ),
             ],
             analysis_errors=["Analysis failed"],
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
-        
+
         formatted = manager.format_results(result)
-        
+
         assert "## Content" in formatted
         assert "## Reviews" in formatted
         assert "### Good Agent" in formatted
@@ -179,14 +180,10 @@ class TestFormatResults:
 
     def test_format_results_empty(self, manager):
         """Test result formatting with empty results."""
-        result = ConversationResult(
-            content="",
-            reviews=[],
-            timestamp=datetime.now()
-        )
-        
+        result = ConversationResult(content="", reviews=[], timestamp=datetime.now())
+
         formatted = manager.format_results(result)
-        
+
         # Should handle empty results gracefully
         assert isinstance(formatted, str)
         # With no content and no reviews, should be minimal output

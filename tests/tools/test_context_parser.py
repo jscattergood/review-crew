@@ -320,9 +320,9 @@ class TestExtractEssayContent:
 
 The announcement wasn't over the loudspeaker; it whispered from Mrs. Scott.
 """
-        
+
         essay_content = extract_essay_content(content)
-        
+
         assert essay_content.startswith('"Everyone, stay in your seats.')
         assert "ASSIGNMENT CONTEXT" not in essay_content
         assert "Word Limit" not in essay_content
@@ -338,10 +338,13 @@ Essay:
 
 This is my personal statement about overcoming challenges.
 """
-        
+
         essay_content = extract_essay_content(content)
-        
-        assert essay_content == "This is my personal statement about overcoming challenges."
+
+        assert (
+            essay_content
+            == "This is my personal statement about overcoming challenges."
+        )
         assert "Assignment:" not in essay_content
         assert "Word Limit:" not in essay_content
 
@@ -356,9 +359,9 @@ This is my personal statement about overcoming challenges.
 My essay begins here with an interesting story about perseverance.
 I learned many valuable lessons through this experience.
 """
-        
+
         essay_content = extract_essay_content(content)
-        
+
         assert essay_content.startswith("My essay begins here")
         assert "Assignment Details" not in essay_content
         assert "Type: Personal Statement" not in essay_content
@@ -366,15 +369,17 @@ I learned many valuable lessons through this experience.
     def test_extract_no_separation_needed(self):
         """Test when content is already just essay text."""
         content = "This is a simple essay without any assignment context."
-        
+
         essay_content = extract_essay_content(content)
-        
+
         assert essay_content == content
 
     def test_extract_empty_content(self):
         """Test extraction with empty or None content."""
         assert extract_essay_content("") == ""
-        assert extract_essay_content("   ") == "   "  # Function returns content.strip() which preserves whitespace
+        assert (
+            extract_essay_content("   ") == "   "
+        )  # Function returns content.strip() which preserves whitespace
         assert extract_essay_content(None) == None
 
     def test_extract_common_app_format(self):
@@ -391,15 +396,15 @@ I learned many valuable lessons through this experience.
 "Everyone, stay in your seats. The school is on lockdown."
 
 The announcement wasn't over the loudspeaker; it whispered from Mrs. Scott. My biology class froze in disbelief."""
-        
+
         essay_content = extract_essay_content(content)
-        
+
         # Should extract just the essay content
         assert essay_content.startswith('"Everyone, stay in your seats.')
         assert "Common Application Essay" not in essay_content
         assert "ASSIGNMENT CONTEXT" not in essay_content
         assert "Word Limit: 650" not in essay_content
-        
+
         # Should include the essay text
         assert "Mrs. Scott" in essay_content
         assert "biology class" in essay_content
@@ -408,16 +413,18 @@ The announcement wasn't over the loudspeaker; it whispered from Mrs. Scott. My b
         """Test extraction from multi-agent graph string format."""
         # This simulates the exact format tools receive from multi-agent execution
         content = """[{'text': 'Original Task: input/primary_essay'}, {'text': '\\nInputs from previous nodes:'}, {'text': '\\nFrom document_processor:'}, {'text': '  - Agent: ## Primary Document\\n\\n• **File:** common_app.md\\n\\nThis is a test essay with exactly ten words for counting.'}]"""
-        
+
         essay_content = extract_essay_content(content)
-        
+
         # Should extract just the essay content
-        assert "This is a test essay with exactly ten words for counting." in essay_content
+        assert (
+            "This is a test essay with exactly ten words for counting." in essay_content
+        )
         # Should not contain metadata
         assert "Original Task:" not in essay_content
         assert "Inputs from previous nodes:" not in essay_content
         assert "From document_processor:" not in essay_content
-        
+
         # The word count should be accurate (not including metadata)
         # Note: We may still have some artifacts to clean up, but the essay content should be present
         assert "test essay" in essay_content
@@ -439,7 +446,7 @@ From document_processor:
 The announcement wasn't over the loudspeaker; it whispered from Mrs. Scott. My biology class froze in disbelief."""
 
         essay_content = extract_essay_content(content)
-        
+
         # Should extract the essay content after metadata
         assert '"Everyone, stay in your seats.' in essay_content
         assert "Mrs. Scott" in essay_content
@@ -453,40 +460,45 @@ The announcement wasn't over the loudspeaker; it whispered from Mrs. Scott. My b
         # Create content with known word count (15 words)
         essay_text = "This essay has exactly fifteen words in it for testing word count accuracy."
         content = f"""[{{'text': 'Original Task: test'}}, {{'text': '\\nFrom document_processor:'}}, {{'text': '  - Agent: ## Primary Document\\n\\n• **File:** test.md\\n\\n{essay_text}'}}]"""
-        
+
         essay_content = extract_essay_content(content)
-        
+
         # The extracted content should contain the essay text
-        assert essay_text in essay_content or essay_text.strip() in essay_content.strip()
-        
+        assert (
+            essay_text in essay_content or essay_text.strip() in essay_content.strip()
+        )
+
         # Clean any remaining artifacts and count words
         clean_content = essay_content.strip()
         # Remove metadata lines if they exist
-        lines = clean_content.split('\n')
+        lines = clean_content.split("\n")
         essay_lines = []
         for line in lines:
             line_stripped = line.strip()
-            if (line_stripped and 
-                not line_stripped.startswith('•') and 
-                not line_stripped.startswith('**File:**') and
-                not line_stripped.startswith('Original Task:') and
-                not line_stripped.startswith('From document_processor:')):
+            if (
+                line_stripped
+                and not line_stripped.startswith("•")
+                and not line_stripped.startswith("**File:**")
+                and not line_stripped.startswith("Original Task:")
+                and not line_stripped.startswith("From document_processor:")
+            ):
                 essay_lines.append(line)
-        
+
         if essay_lines:
-            clean_content = '\n'.join(essay_lines).strip()
-        
+            clean_content = "\n".join(essay_lines).strip()
+
         # Remove any JSON artifacts
         import re
-        clean_content = re.sub(r'["\}\]]+$', '', clean_content)
-        
+
+        clean_content = re.sub(r'["\}\]]+$', "", clean_content)
+
         words = clean_content.split()
         # The essay should have exactly 15 words
         # Note: This test helps us verify our parsing is working correctly
         print(f"DEBUG: Extracted content: {repr(clean_content)}")
         print(f"DEBUG: Word count: {len(words)}")
         print(f"DEBUG: Words: {words}")
-        
+
         # The test should verify we can extract clean content
         assert len(words) >= 10  # At least most of the words should be there
         assert "essay" in words

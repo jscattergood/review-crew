@@ -5,12 +5,12 @@ import pytest
 from src.tools.text_metrics import (
     ConstraintValidation,
     TextMetrics,
+    _strip_markdown_formatting,
     analyze_readability,
-    analyze_vocabulary,
     analyze_short_answers,
+    analyze_vocabulary,
     get_text_metrics,
     validate_constraints,
-    _strip_markdown_formatting,
 )
 
 
@@ -239,7 +239,7 @@ class TestStripMarkdownFormatting:
         text = "_The Art of Tahdig_: Perfect Crispy Rice"
         result = _strip_markdown_formatting(text)
         assert result == "The Art of Tahdig: Perfect Crispy Rice"
-        
+
         # Test asterisk italics
         text = "*italic text* and normal text"
         result = _strip_markdown_formatting(text)
@@ -251,7 +251,7 @@ class TestStripMarkdownFormatting:
         text = "**Bold text** and normal text"
         result = _strip_markdown_formatting(text)
         assert result == "Bold text and normal text"
-        
+
         # Test double underscore bold
         text = "__Bold text__ and normal text"
         result = _strip_markdown_formatting(text)
@@ -262,7 +262,7 @@ class TestStripMarkdownFormatting:
         text = "***Bold italic text*** and normal text"
         result = _strip_markdown_formatting(text)
         assert result == "Bold italic text and normal text"
-        
+
         text = "___Bold italic text___ and normal text"
         result = _strip_markdown_formatting(text)
         assert result == "Bold italic text and normal text"
@@ -307,28 +307,28 @@ class TestAnalyzeShortAnswers:
         """Test parsing single inline format answer."""
         content = "*What is your favorite color?* Blue is my favorite color."
         result = analyze_short_answers(content, 100)
-        
-        assert result['total_answers'] == 1
-        assert result['answers_within_limit'] == 1
-        assert result['answers_over_limit'] == 0
-        
-        answer = result['answers'][0]
-        assert answer['question'] == "What is your favorite color?"
-        assert answer['answer'] == "Blue is my favorite color."
-        assert answer['character_count'] == 26
-        assert answer['within_limit'] is True
+
+        assert result["total_answers"] == 1
+        assert result["answers_within_limit"] == 1
+        assert result["answers_over_limit"] == 0
+
+        answer = result["answers"][0]
+        assert answer["question"] == "What is your favorite color?"
+        assert answer["answer"] == "Blue is my favorite color."
+        assert answer["character_count"] == 26
+        assert answer["within_limit"] is True
 
     def test_single_multiline_answer(self):
         """Test parsing single multi-line format answer."""
         content = """*Describe yourself in three words.*
 - First Word: Compassionate"""
         result = analyze_short_answers(content, 100)
-        
-        assert result['total_answers'] == 1
-        answer = result['answers'][0]
-        assert answer['question'] == "Describe yourself in three words."
-        assert answer['answer'] == "First Word: Compassionate"
-        assert answer['character_count'] == 25
+
+        assert result["total_answers"] == 1
+        answer = result["answers"][0]
+        assert answer["question"] == "Describe yourself in three words."
+        assert answer["answer"] == "First Word: Compassionate"
+        assert answer["character_count"] == 25
 
     def test_multiple_mixed_format_answers(self):
         """Test parsing multiple answers in different formats."""
@@ -338,76 +338,76 @@ class TestAnalyzeShortAnswers:
 
 *Describe yourself.*
 - Creative person"""
-        
+
         result = analyze_short_answers(content, 50)
-        
-        assert result['total_answers'] == 3
-        
+
+        assert result["total_answers"] == 3
+
         # Check first answer (inline)
-        assert result['answers'][0]['question'] == "What is your favorite snack?"
-        assert result['answers'][0]['answer'] == "Trader Joe's chips."
-        
+        assert result["answers"][0]["question"] == "What is your favorite snack?"
+        assert result["answers"][0]["answer"] == "Trader Joe's chips."
+
         # Check second answer (inline)
-        assert result['answers'][1]['question'] == "Dream job:"
-        assert result['answers'][1]['answer'] == "Head of my own NGO."
-        
+        assert result["answers"][1]["question"] == "Dream job:"
+        assert result["answers"][1]["answer"] == "Head of my own NGO."
+
         # Check third answer (multiline)
-        assert result['answers'][2]['question'] == "Describe yourself."
-        assert result['answers'][2]['answer'] == "Creative person"
+        assert result["answers"][2]["question"] == "Describe yourself."
+        assert result["answers"][2]["answer"] == "Creative person"
 
     def test_character_limit_validation(self):
         """Test character limit validation."""
         content = """*Short answer?* Yes.
 *Long answer?* This is a very long answer that definitely exceeds the character limit we set for testing purposes."""
-        
+
         result = analyze_short_answers(content, 20)
-        
-        assert result['total_answers'] == 2
-        assert result['answers_within_limit'] == 1
-        assert result['answers_over_limit'] == 1
-        
+
+        assert result["total_answers"] == 2
+        assert result["answers_within_limit"] == 1
+        assert result["answers_over_limit"] == 1
+
         # Short answer should be within limit
-        assert result['answers'][0]['within_limit'] is True
-        assert result['answers'][0]['character_count'] <= 20
-        
+        assert result["answers"][0]["within_limit"] is True
+        assert result["answers"][0]["character_count"] <= 20
+
         # Long answer should be over limit
-        assert result['answers'][1]['within_limit'] is False
-        assert result['answers'][1]['character_count'] > 20
-        assert result['answers'][1]['over_by'] > 0
+        assert result["answers"][1]["within_limit"] is False
+        assert result["answers"][1]["character_count"] > 20
+        assert result["answers"][1]["over_by"] > 0
 
     def test_markdown_stripping_in_answers(self):
         """Test that markdown formatting is stripped from character counts."""
         content = "*Class topic?* _The Art of Tahdig_: Perfect Crispy Rice—where burning the bottom isn't failure; it's the whole point."
-        
+
         result = analyze_short_answers(content, 100)
-        
-        assert result['total_answers'] == 1
-        answer = result['answers'][0]
-        
+
+        assert result["total_answers"] == 1
+        answer = result["answers"][0]
+
         # Original answer should contain markdown
-        assert "_The Art of Tahdig_" in answer['answer']
-        
+        assert "_The Art of Tahdig_" in answer["answer"]
+
         # Clean answer should not contain markdown
-        assert "_The Art of Tahdig_" not in answer['clean_answer']
-        assert "The Art of Tahdig:" in answer['clean_answer']
-        
+        assert "_The Art of Tahdig_" not in answer["clean_answer"]
+        assert "The Art of Tahdig:" in answer["clean_answer"]
+
         # Character count should be based on clean version
-        assert answer['character_count'] == 100  # Without markdown formatting
-        assert answer['within_limit'] is True
+        assert answer["character_count"] == 100  # Without markdown formatting
+        assert answer["within_limit"] is True
 
     def test_empty_content(self):
         """Test with empty content."""
         result = analyze_short_answers("", 100)
-        
-        assert result['total_answers'] == 0
-        assert result['answers_within_limit'] == 0
-        assert result['answers_over_limit'] == 0
-        assert result['answers'] == []
+
+        assert result["total_answers"] == 0
+        assert result["answers_within_limit"] == 0
+        assert result["answers_over_limit"] == 0
+        assert result["answers"] == []
 
     def test_no_answers_found(self):
         """Test with content that has no recognizable Q&A format."""
         content = "This is just plain text without any question format."
         result = analyze_short_answers(content, 100)
-        
-        assert result['total_answers'] == 0
-        assert result['answers'] == []
+
+        assert result["total_answers"] == 0
+        assert result["answers"] == []
